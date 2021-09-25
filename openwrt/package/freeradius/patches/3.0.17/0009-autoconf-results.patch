@@ -1,0 +1,1467 @@
+From e92996acf49e27241ac0436f8170e06f0bba5e66 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 19 Nov 2018 15:47:02 -0800
+Subject: [PATCH 09/15] autoconf-results
+
+---
+ configure | 1299 +++--------------------------------------------------
+ 1 file changed, 70 insertions(+), 1229 deletions(-)
+
+diff --git a/configure b/configure
+index 0c59a3c8a9..f5c43ca7aa 100755
+--- a/configure
++++ b/configure
+@@ -711,6 +711,7 @@ infodir
+ docdir
+ oldincludedir
+ includedir
++runstatedir
+ localstatedir
+ sharedstatedir
+ sysconfdir
+@@ -765,10 +766,6 @@ with_pcap_lib_dir
+ with_pcap_include_dir
+ with_collectdclient_lib_dir
+ with_collectdclient_include_dir
+-with_cap_lib_dir
+-with_cap_include_dir
+-with_execinfo_lib_dir
+-with_execinfo_include_dir
+ with_pcre
+ with_pcre_lib_dir
+ with_pcre_include_dir
+@@ -824,6 +821,7 @@ datadir='${datarootdir}'
+ sysconfdir='${prefix}/etc'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
++runstatedir='${localstatedir}/run'
+ includedir='${prefix}/include'
+ oldincludedir='/usr/include'
+ docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
+@@ -1076,6 +1074,15 @@ do
+   | -silent | --silent | --silen | --sile | --sil)
+     silent=yes ;;
+ 
++  -runstatedir | --runstatedir | --runstatedi | --runstated \
++  | --runstate | --runstat | --runsta | --runst | --runs \
++  | --run | --ru | --r)
++    ac_prev=runstatedir ;;
++  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
++  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
++  | --run=* | --ru=* | --r=*)
++    runstatedir=$ac_optarg ;;
++
+   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
+     ac_prev=sbindir ;;
+   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
+@@ -1213,7 +1220,7 @@ fi
+ for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
+ 		datadir sysconfdir sharedstatedir localstatedir includedir \
+ 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
+-		libdir localedir mandir
++		libdir localedir mandir runstatedir
+ do
+   eval ac_val=\$$ac_var
+   # Remove trailing slashes.
+@@ -1366,6 +1373,7 @@ Fine tuning of the installation directories:
+   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
++  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+   --libdir=DIR            object code libraries [EPREFIX/lib]
+   --includedir=DIR        C header files [PREFIX/include]
+   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+@@ -1455,15 +1463,6 @@ Optional Packages:
+   --with-collectdclient-include-dir=DIR
+                           directory in which to look for collectdclient
+                           include files
+-  --with-cap-lib-dir=DIR  directory in which to look for cap library files
+-  --with-cap-include-dir=DIR
+-                          directory in which to look for cap include files
+-  --with-execinfo-lib-dir=DIR
+-                          directory in which to look for execinfo library
+-                          files
+-  --with-execinfo-include-dir=DIR
+-                          directory in which to look for execinfo include
+-                          files
+   --with-pcre             use libpcre (if available). (default=yes)
+   --with-pcre-lib-dir=DIR directory in which to look for pcre library files
+   --with-pcre-include-dir=DIR
+@@ -2425,6 +2424,8 @@ ac_config_headers="$ac_config_headers src/include/autoconf.h"
+ 
+ 
+ 
++
++
+ 
+ RADIUSD_MAJOR_VERSION=`cat VERSION | cut -f1 -d.`
+ RADIUSD_MINOR_VERSION=`cat VERSION | cut -f2 -d.`
+@@ -4502,7 +4503,7 @@ else
+     We can't simply define LARGE_OFF_T to be 9223372036854775807,
+     since some C++ compilers masquerading as C compilers
+     incorrectly reject 9223372036854775807.  */
+-#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++#define LARGE_OFF_T ((((off_t) 1 << 31) << 31) - 1 + (((off_t) 1 << 31) << 31))
+   int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
+ 		       && LARGE_OFF_T % 2147483647 == 1)
+ 		      ? 1 : -1];
+@@ -4548,7 +4549,7 @@ else
+     We can't simply define LARGE_OFF_T to be 9223372036854775807,
+     since some C++ compilers masquerading as C compilers
+     incorrectly reject 9223372036854775807.  */
+-#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++#define LARGE_OFF_T ((((off_t) 1 << 31) << 31) - 1 + (((off_t) 1 << 31) << 31))
+   int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
+ 		       && LARGE_OFF_T % 2147483647 == 1)
+ 		      ? 1 : -1];
+@@ -4572,7 +4573,7 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+     We can't simply define LARGE_OFF_T to be 9223372036854775807,
+     since some C++ compilers masquerading as C compilers
+     incorrectly reject 9223372036854775807.  */
+-#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++#define LARGE_OFF_T ((((off_t) 1 << 31) << 31) - 1 + (((off_t) 1 << 31) << 31))
+   int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
+ 		       && LARGE_OFF_T % 2147483647 == 1)
+ 		      ? 1 : -1];
+@@ -4617,7 +4618,7 @@ else
+     We can't simply define LARGE_OFF_T to be 9223372036854775807,
+     since some C++ compilers masquerading as C compilers
+     incorrectly reject 9223372036854775807.  */
+-#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++#define LARGE_OFF_T ((((off_t) 1 << 31) << 31) - 1 + (((off_t) 1 << 31) << 31))
+   int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
+ 		       && LARGE_OFF_T % 2147483647 == 1)
+ 		      ? 1 : -1];
+@@ -4641,7 +4642,7 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+     We can't simply define LARGE_OFF_T to be 9223372036854775807,
+     since some C++ compilers masquerading as C compilers
+     incorrectly reject 9223372036854775807.  */
+-#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++#define LARGE_OFF_T ((((off_t) 1 << 31) << 31) - 1 + (((off_t) 1 << 31) << 31))
+   int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
+ 		       && LARGE_OFF_T % 2147483647 == 1)
+ 		      ? 1 : -1];
+@@ -7133,225 +7134,6 @@ else
+ fi
+ LIBS="${old_LIBS}"
+ 
+-cap_lib_dir=
+-
+-# Check whether --with-cap-lib-dir was given.
+-if test "${with_cap_lib_dir+set}" = set; then :
+-  withval=$with_cap_lib_dir; case "$withval" in
+-    no)
+-      as_fn_error $? "Need cap-lib-dir" "$LINENO" 5
+-      ;;
+-    yes)
+-      ;;
+-    *)
+-      cap_lib_dir="$withval"
+-      ;;
+-  esac
+-fi
+-
+-
+-cap_include_dir=
+-
+-# Check whether --with-cap-include-dir was given.
+-if test "${with_cap_include_dir+set}" = set; then :
+-  withval=$with_cap_include_dir; case "$withval" in
+-    no)
+-      as_fn_error $? "Need cap-include-dir" "$LINENO" 5
+-      ;;
+-    yes)
+-      ;;
+-    *)
+-      cap_include_dir="$withval"
+-      ;;
+-  esac
+-fi
+-
+-
+-smart_try_dir="$cap_lib_dir"
+-
+-
+-sm_lib_safe=`echo "cap" | sed 'y%./+-%__p_%'`
+-sm_func_safe=`echo "cap_get_proc" | sed 'y%./+-%__p_%'`
+-
+-old_LIBS="$LIBS"
+-old_CPPFLAGS="$CPPFLAGS"
+-smart_lib=
+-smart_ldflags=
+-smart_lib_dir=
+-
+-if test "x$smart_try_dir" != "x"; then
+-  for try in $smart_try_dir; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for cap_get_proc in -lcap in $try" >&5
+-$as_echo_n "checking for cap_get_proc in -lcap in $try... " >&6; }
+-    LIBS="-lcap $old_LIBS"
+-    CPPFLAGS="-L$try -Wl,-rpath,$try $old_CPPFLAGS"
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-extern char cap_get_proc();
+-int
+-main ()
+-{
+-cap_get_proc()
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_link "$LINENO"; then :
+-
+-		 smart_lib="-lcap"
+-		 smart_ldflags="-L$try -Wl,-rpath,$try"
+-		 { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		 break
+-
+-else
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-fi
+-rm -f core conftest.err conftest.$ac_objext \
+-    conftest$ac_exeext conftest.$ac_ext
+-  done
+-  LIBS="$old_LIBS"
+-  CPPFLAGS="$old_CPPFLAGS"
+-fi
+-
+-if test "x$smart_lib" = "x"; then
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for cap_get_proc in -lcap" >&5
+-$as_echo_n "checking for cap_get_proc in -lcap... " >&6; }
+-  LIBS="-lcap $old_LIBS"
+-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-extern char cap_get_proc();
+-int
+-main ()
+-{
+-cap_get_proc()
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_link "$LINENO"; then :
+-
+-	        smart_lib="-lcap"
+-	        { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-
+-else
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-fi
+-rm -f core conftest.err conftest.$ac_objext \
+-    conftest$ac_exeext conftest.$ac_ext
+-  LIBS="$old_LIBS"
+-fi
+-
+-if test "x$smart_lib" = "x"; then
+-
+-
+-if test "x$LOCATE" != "x"; then
+-        DIRS=
+-  file=libcap${libltdl_cv_shlibext}
+-
+-  for x in `${LOCATE} $file 2>/dev/null`; do
+-                                        base=`echo $x | sed "s%/${file}%%"`
+-    if test "x$x" = "x$base"; then
+-      continue;
+-    fi
+-
+-    dir=`${DIRNAME} $x 2>/dev/null`
+-                exclude=`echo ${dir} | ${GREP} /home`
+-    if test "x$exclude" != "x"; then
+-      continue
+-    fi
+-
+-                    already=`echo \$smart_lib_dir ${DIRS} | ${GREP} ${dir}`
+-    if test "x$already" = "x"; then
+-      DIRS="$DIRS $dir"
+-    fi
+-  done
+-fi
+-
+-eval "smart_lib_dir=\"\$smart_lib_dir $DIRS\""
+-
+-
+-
+-if test "x$LOCATE" != "x"; then
+-        DIRS=
+-  file=libcap.a
+-
+-  for x in `${LOCATE} $file 2>/dev/null`; do
+-                                        base=`echo $x | sed "s%/${file}%%"`
+-    if test "x$x" = "x$base"; then
+-      continue;
+-    fi
+-
+-    dir=`${DIRNAME} $x 2>/dev/null`
+-                exclude=`echo ${dir} | ${GREP} /home`
+-    if test "x$exclude" != "x"; then
+-      continue
+-    fi
+-
+-                    already=`echo \$smart_lib_dir ${DIRS} | ${GREP} ${dir}`
+-    if test "x$already" = "x"; then
+-      DIRS="$DIRS $dir"
+-    fi
+-  done
+-fi
+-
+-eval "smart_lib_dir=\"\$smart_lib_dir $DIRS\""
+-
+-
+-  for try in $smart_lib_dir /usr/local/lib /opt/lib; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for cap_get_proc in -lcap in $try" >&5
+-$as_echo_n "checking for cap_get_proc in -lcap in $try... " >&6; }
+-    LIBS="-lcap $old_LIBS"
+-    CPPFLAGS="-L$try -Wl,-rpath,$try $old_CPPFLAGS"
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-extern char cap_get_proc();
+-int
+-main ()
+-{
+-cap_get_proc()
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_link "$LINENO"; then :
+-
+-		  smart_lib="-lcap"
+-		  smart_ldflags="-L$try -Wl,-rpath,$try"
+-		  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		  break
+-
+-else
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-fi
+-rm -f core conftest.err conftest.$ac_objext \
+-    conftest$ac_exeext conftest.$ac_ext
+-  done
+-  LIBS="$old_LIBS"
+-  CPPFLAGS="$old_CPPFLAGS"
+-fi
+-
+-if test "x$smart_lib" != "x"; then
+-  eval "ac_cv_lib_${sm_lib_safe}_${sm_func_safe}=yes"
+-  LIBS="$smart_ldflags $smart_lib $old_LIBS"
+-  SMART_LIBS="$smart_ldflags $smart_lib $SMART_LIBS"
+-fi
+-
+-if test "x$ac_cv_lib_cap_cap_get_proc" != "xyes"; then
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: cap library not found, debugger checks will not be enabled. Use --with-cap-lib-dir=<path>." >&5
+-$as_echo "$as_me: WARNING: cap library not found, debugger checks will not be enabled. Use --with-cap-lib-dir=<path>." >&2;}
+-else
+-
+-$as_echo "#define HAVE_LIBCAP 1" >>confdefs.h
+-
+-  HAVE_LIBCAP=1
+-fi
+-
+ 
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for a readline compatible library" >&5
+ $as_echo_n "checking for a readline compatible library... " >&6; }
+@@ -8798,8 +8580,7 @@ $as_echo "#define HAVE_OPENSSL_SSL_H 1" >>confdefs.h
+       openssl/md4.h \
+       openssl/sha.h \
+       openssl/ssl.h \
+-      openssl/ocsp.h \
+-      openssl/engine.h
++      openssl/ocsp.h
+ do :
+   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+@@ -8816,6 +8597,19 @@ as_fn_error $? "failed locating OpenSSL headers. Use --with-openssl-include-dir=
+ See \`config.log' for more details" "$LINENO" 5; }
+ 
+ 
++fi
++
++done
++
++
++    for ac_header in openssl/engine.h
++do :
++  ac_fn_c_check_header_mongrel "$LINENO" "openssl/engine.h" "ac_cv_header_openssl_engine_h" "$ac_includes_default"
++if test "x$ac_cv_header_openssl_engine_h" = xyes; then :
++  cat >>confdefs.h <<_ACEOF
++#define HAVE_OPENSSL_ENGINE_H 1
++_ACEOF
++
+ fi
+ 
+ done
+@@ -8854,57 +8648,6 @@ rm -f conftest*
+                         old_CPPFLAGS="$CPPFLAGS"
+     CPPFLAGS="$OPENSSL_CPPFLAGS $CPPFLAGS"
+ 
+-                { $as_echo "$as_me:${as_lineno-$LINENO}: checking OpenSSL library and header version consistency" >&5
+-$as_echo_n "checking OpenSSL library and header version consistency... " >&6; }
+-    if test "$cross_compiling" = yes; then :
+-
+-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: cross-compiling (assuming yes)" >&5
+-$as_echo "cross-compiling (assuming yes)" >&6; }
+-
+-
+-else
+-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-          #include <stdio.h>
+-          #include <openssl/opensslv.h>
+-          #include <openssl/crypto.h>
+-
+-int
+-main ()
+-{
+-
+-          printf("library: %lx header: %lx... ", (unsigned long) SSLeay(), (unsigned long) OPENSSL_VERSION_NUMBER);
+-          if (SSLeay() == OPENSSL_VERSION_NUMBER) {
+-            return 0;
+-          } else {
+-            return 1;
+-          }
+-
+-
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_run "$LINENO"; then :
+-
+-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-
+-else
+-
+-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-        { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+-as_fn_error $? "OpenSSL library version does not match header version
+-See \`config.log' for more details" "$LINENO" 5; }
+-
+-fi
+-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+-  conftest.$ac_objext conftest.beam conftest.$ac_ext
+-fi
+-
+                 for ac_func in \
+       SSL_get_client_random \
+       SSL_get_server_random \
+@@ -9423,261 +9166,20 @@ $as_echo "$as_me: WARNING: collectdclient headers not found. Use --with-collectd
+   fi
+ fi
+ 
+-if test "x$HAVE_LIBCAP" = x; then
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: skipping test for cap.h." >&5
+-$as_echo "$as_me: skipping test for cap.h." >&6;}
+-else
+-        smart_try_dir="$cap_include_dir"
+ 
++ac_fn_c_check_type "$LINENO" "off_t" "ac_cv_type_off_t" "$ac_includes_default"
++if test "x$ac_cv_type_off_t" = xyes; then :
+ 
+-ac_safe=`echo "sys/capability.h" | sed 'y%./+-%__pm%'`
+-old_CPPFLAGS="$CPPFLAGS"
+-smart_include=
+-smart_include_dir="/usr/local/include /opt/include"
++else
+ 
+-_smart_try_dir=
+-_smart_include_dir=
++cat >>confdefs.h <<_ACEOF
++#define off_t long int
++_ACEOF
+ 
+-for _prefix in $smart_prefix ""; do
+-  for _dir in $smart_try_dir; do
+-    _smart_try_dir="${_smart_try_dir} ${_dir}/${_prefix}"
+-  done
++fi
+ 
+-  for _dir in $smart_include_dir; do
+-    _smart_include_dir="${_smart_include_dir} ${_dir}/${_prefix}"
+-  done
+-done
+-
+-if test "x$_smart_try_dir" != "x"; then
+-  for try in $_smart_try_dir; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for sys/capability.h in $try" >&5
+-$as_echo_n "checking for sys/capability.h in $try... " >&6; }
+-    CPPFLAGS="-isystem $try $old_CPPFLAGS"
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-		    #include <sys/capability.h>
+-int
+-main ()
+-{
+-int a = 1;
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_compile "$LINENO"; then :
+-
+-		     smart_include="-isystem $try"
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		     break
+-
+-else
+-
+-		     smart_include=
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-  done
+-  CPPFLAGS="$old_CPPFLAGS"
+-fi
+-
+-if test "x$smart_include" = "x"; then
+-  for _prefix in $smart_prefix; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ${_prefix}/sys/capability.h" >&5
+-$as_echo_n "checking for ${_prefix}/sys/capability.h... " >&6; }
+-
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-		    #include <sys/capability.h>
+-int
+-main ()
+-{
+-int a = 1;
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_compile "$LINENO"; then :
+-
+-		     smart_include="-isystem ${_prefix}/"
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		     break
+-
+-else
+-
+-		     smart_include=
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-  done
+-fi
+-
+-if test "x$smart_include" = "x"; then
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for sys/capability.h" >&5
+-$as_echo_n "checking for sys/capability.h... " >&6; }
+-
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-		    #include <sys/capability.h>
+-int
+-main ()
+-{
+-int a = 1;
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_compile "$LINENO"; then :
+-
+-		     smart_include=" "
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		     break
+-
+-else
+-
+-		     smart_include=
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-fi
+-
+-if test "x$smart_include" = "x"; then
+-
+-  for prefix in $smart_prefix; do
+-
+-
+-if test "x$LOCATE" != "x"; then
+-        DIRS=
+-  file="${_prefix}/${1}"
+-
+-  for x in `${LOCATE} $file 2>/dev/null`; do
+-                                        base=`echo $x | sed "s%/${file}%%"`
+-    if test "x$x" = "x$base"; then
+-      continue;
+-    fi
+-
+-    dir=`${DIRNAME} $x 2>/dev/null`
+-                exclude=`echo ${dir} | ${GREP} /home`
+-    if test "x$exclude" != "x"; then
+-      continue
+-    fi
+-
+-                    already=`echo \$_smart_include_dir ${DIRS} | ${GREP} ${dir}`
+-    if test "x$already" = "x"; then
+-      DIRS="$DIRS $dir"
+-    fi
+-  done
+-fi
+-
+-eval "_smart_include_dir=\"\$_smart_include_dir $DIRS\""
+-
+-  done
+-
+-
+-if test "x$LOCATE" != "x"; then
+-        DIRS=
+-  file=sys/capability.h
+-
+-  for x in `${LOCATE} $file 2>/dev/null`; do
+-                                        base=`echo $x | sed "s%/${file}%%"`
+-    if test "x$x" = "x$base"; then
+-      continue;
+-    fi
+-
+-    dir=`${DIRNAME} $x 2>/dev/null`
+-                exclude=`echo ${dir} | ${GREP} /home`
+-    if test "x$exclude" != "x"; then
+-      continue
+-    fi
+-
+-                    already=`echo \$_smart_include_dir ${DIRS} | ${GREP} ${dir}`
+-    if test "x$already" = "x"; then
+-      DIRS="$DIRS $dir"
+-    fi
+-  done
+-fi
+-
+-eval "_smart_include_dir=\"\$_smart_include_dir $DIRS\""
+-
+-
+-  for try in $_smart_include_dir; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for sys/capability.h in $try" >&5
+-$as_echo_n "checking for sys/capability.h in $try... " >&6; }
+-    CPPFLAGS="-isystem $try $old_CPPFLAGS"
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-		    #include <sys/capability.h>
+-int
+-main ()
+-{
+-int a = 1;
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_compile "$LINENO"; then :
+-
+-		     smart_include="-isystem $try"
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		     break
+-
+-else
+-
+-		     smart_include=
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-  done
+-  CPPFLAGS="$old_CPPFLAGS"
+-fi
+-
+-if test "x$smart_include" != "x"; then
+-  eval "ac_cv_header_$ac_safe=yes"
+-  CPPFLAGS="$smart_include $old_CPPFLAGS"
+-  SMART_CPPFLAGS="$smart_include $SMART_CPPFLAGS"
+-fi
+-
+-smart_prefix=
+-
+-  if test "x$ac_cv_header_sys_capability_h" = "xyes"; then
+-
+-$as_echo "#define HAVE_CAPABILITY_H 1" >>confdefs.h
+-
+-  else
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: cap headers not found, will not perform debugger checks. Use --with-cap-include-dir=<path>." >&5
+-$as_echo "$as_me: WARNING: cap headers not found, will not perform debugger checks. Use --with-cap-include-dir=<path>." >&2;}
+-  fi
+-fi
+-
+-
+-ac_fn_c_check_type "$LINENO" "off_t" "ac_cv_type_off_t" "$ac_includes_default"
+-if test "x$ac_cv_type_off_t" = xyes; then :
+-
+-else
+-
+-cat >>confdefs.h <<_ACEOF
+-#define off_t long int
+-_ACEOF
+-
+-fi
+-
+-ac_fn_c_check_type "$LINENO" "pid_t" "ac_cv_type_pid_t" "$ac_includes_default"
+-if test "x$ac_cv_type_pid_t" = xyes; then :
++ac_fn_c_check_type "$LINENO" "pid_t" "ac_cv_type_pid_t" "$ac_includes_default"
++if test "x$ac_cv_type_pid_t" = xyes; then :
+ 
+ else
+ 
+@@ -10731,220 +10233,40 @@ $as_echo "#define TLS_STORAGE_CLASS _Thread_local" >>confdefs.h
+   fi
+ 
+ 
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for __builtin_choose_expr support in compiler" >&5
+-$as_echo_n "checking for __builtin_choose_expr support in compiler... " >&6; }
+-if ${ax_cv_cc_builtin_choose_expr+:} false; then :
+-  $as_echo_n "(cached) " >&6
+-else
+ 
+-    if test "$cross_compiling" = yes; then :
+-  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+-as_fn_error $? "cannot run test program while cross compiling
+-See \`config.log' for more details" "$LINENO" 5; }
++{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for talloc_set_memlimit in -ltalloc" >&5
++$as_echo_n "checking for talloc_set_memlimit in -ltalloc... " >&6; }
++if ${ac_cv_lib_talloc_talloc_set_memlimit+:} false; then :
++  $as_echo_n "(cached) " >&6
+ else
+-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++  ac_check_lib_save_LIBS=$LIBS
++LIBS="-ltalloc  $LIBS"
++cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+-
+-          int main(int argc, char **argv) {
+-            if ((argc < 0) || !argv) return 1; /* -Werror=unused-parameter */
+-            return __builtin_choose_expr(0, 1, 0);
+-          }
+-
+-
++/* Override any GCC internal prototype to avoid an error.
++   Use char because int might match the return type of a GCC
++   builtin and then its argument prototype would still apply.  */
++#ifdef __cplusplus
++extern "C"
++#endif
++char talloc_set_memlimit ();
++int
++main ()
++{
++return talloc_set_memlimit ();
++  ;
++  return 0;
++}
+ _ACEOF
+-if ac_fn_c_try_run "$LINENO"; then :
+-  ax_cv_cc_builtin_choose_expr=yes
++if ac_fn_c_try_link "$LINENO"; then :
++  ac_cv_lib_talloc_talloc_set_memlimit=yes
+ else
+-  ax_cv_cc_builtin_choose_expr=no
+-
++  ac_cv_lib_talloc_talloc_set_memlimit=no
+ fi
+-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+-  conftest.$ac_objext conftest.beam conftest.$ac_ext
+-fi
+-
+-
+-fi
+-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_cc_builtin_choose_expr" >&5
+-$as_echo "$ax_cv_cc_builtin_choose_expr" >&6; }
+-  if test "x$ax_cv_cc_builtin_choose_expr" = "xyes"; then
+-
+-$as_echo "#define HAVE_BUILTIN_CHOOSE_EXPR 1" >>confdefs.h
+-
+-  fi
+-
+-
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for __builtin_types_compatible_p support in compiler" >&5
+-$as_echo_n "checking for __builtin_types_compatible_p support in compiler... " >&6; }
+-if ${ax_cv_cc_builtin_types_compatible_p+:} false; then :
+-  $as_echo_n "(cached) " >&6
+-else
+-
+-    if test "$cross_compiling" = yes; then :
+-  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+-as_fn_error $? "cannot run test program while cross compiling
+-See \`config.log' for more details" "$LINENO" 5; }
+-else
+-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-
+-          int main(int argc, char **argv) {
+-            if ((argc < 0) || !argv) return 1; /* -Werror=unused-parameter */
+-            return !(__builtin_types_compatible_p(char *, char *));
+-          }
+-
+-
+-_ACEOF
+-if ac_fn_c_try_run "$LINENO"; then :
+-  ax_cv_cc_builtin_types_compatible_p=yes
+-else
+-  ax_cv_cc_builtin_types_compatible_p=no
+-
+-fi
+-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+-  conftest.$ac_objext conftest.beam conftest.$ac_ext
+-fi
+-
+-
+-fi
+-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_cc_builtin_types_compatible_p" >&5
+-$as_echo "$ax_cv_cc_builtin_types_compatible_p" >&6; }
+-  if test "x$ax_cv_cc_builtin_types_compatible_p" = "xyes"; then
+-
+-$as_echo "#define HAVE_BUILTIN_TYPES_COMPATIBLE_P 1" >>confdefs.h
+-
+-  fi
+-
+-
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for __builtin_bswap64 support in compiler" >&5
+-$as_echo_n "checking for __builtin_bswap64 support in compiler... " >&6; }
+-if ${ax_cv_cc_builtin_bswap64+:} false; then :
+-  $as_echo_n "(cached) " >&6
+-else
+-
+-    if test "$cross_compiling" = yes; then :
+-  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+-as_fn_error $? "cannot run test program while cross compiling
+-See \`config.log' for more details" "$LINENO" 5; }
+-else
+-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-
+-          int main(int argc, char **argv) {
+-            if ((argc < 0) || !argv) return 1; /* -Werror=unused-parameter */
+-            return (__builtin_bswap64(0));
+-          }
+-
+-
+-_ACEOF
+-if ac_fn_c_try_run "$LINENO"; then :
+-  ax_cv_cc_builtin_bswap64=yes
+-else
+-  ax_cv_cc_builtin_bswap64=no
+-
+-fi
+-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+-  conftest.$ac_objext conftest.beam conftest.$ac_ext
+-fi
+-
+-
+-fi
+-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_cc_builtin_bswap64" >&5
+-$as_echo "$ax_cv_cc_builtin_bswap64" >&6; }
+-  if test "x$ax_cv_cc_builtin_bswap64" = "xyes"; then
+-
+-$as_echo "#define HAVE_BUILTIN_BSWAP_64 1" >>confdefs.h
+-
+-  fi
+-
+-
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for __attribute__((__bounded__)) support in compiler" >&5
+-$as_echo_n "checking for __attribute__((__bounded__)) support in compiler... " >&6; }
+-if ${ax_cv_cc_bounded_attribute+:} false; then :
+-  $as_echo_n "(cached) " >&6
+-else
+-
+-    CFLAGS_SAVED=$CFLAGS
+-    CFLAGS="$CFLAGS -Werror"
+-    if test "$cross_compiling" = yes; then :
+-  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+-$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+-as_fn_error $? "cannot run test program while cross compiling
+-See \`config.log' for more details" "$LINENO" 5; }
+-else
+-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-
+-          void test(char *buff) __attribute__ ((__bounded__ (__string__, 1, 1)));
+-          int main(int argc, char **argv) {
+-            if ((argc < 0) || !argv) return 1; /* -Werror=unused-parameter */
+-            return 0;
+-          }
+-
+-
+-_ACEOF
+-if ac_fn_c_try_run "$LINENO"; then :
+-  ax_cv_cc_bounded_attribute=yes
+-else
+-  ax_cv_cc_bounded_attribute=no
+-
+-fi
+-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+-  conftest.$ac_objext conftest.beam conftest.$ac_ext
+-fi
+-
+-    CFLAGS="$CFLAGS_SAVED"
+-
+-fi
+-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_cc_bounded_attribute" >&5
+-$as_echo "$ax_cv_cc_bounded_attribute" >&6; }
+-  if test "x$ax_cv_cc_bounded_attribute" = "xyes"; then
+-
+-$as_echo "#define HAVE_ATTRIBUTE_BOUNDED 1" >>confdefs.h
+-
+-  fi
+-
+-
+-
+-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for talloc_set_memlimit in -ltalloc" >&5
+-$as_echo_n "checking for talloc_set_memlimit in -ltalloc... " >&6; }
+-if ${ac_cv_lib_talloc_talloc_set_memlimit+:} false; then :
+-  $as_echo_n "(cached) " >&6
+-else
+-  ac_check_lib_save_LIBS=$LIBS
+-LIBS="-ltalloc  $LIBS"
+-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-/* Override any GCC internal prototype to avoid an error.
+-   Use char because int might match the return type of a GCC
+-   builtin and then its argument prototype would still apply.  */
+-#ifdef __cplusplus
+-extern "C"
+-#endif
+-char talloc_set_memlimit ();
+-int
+-main ()
+-{
+-return talloc_set_memlimit ();
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_link "$LINENO"; then :
+-  ac_cv_lib_talloc_talloc_set_memlimit=yes
+-else
+-  ac_cv_lib_talloc_talloc_set_memlimit=no
+-fi
+-rm -f core conftest.err conftest.$ac_objext \
+-    conftest$ac_exeext conftest.$ac_ext
+-LIBS=$ac_check_lib_save_LIBS
++rm -f core conftest.err conftest.$ac_objext \
++    conftest$ac_exeext conftest.$ac_ext
++LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_talloc_talloc_set_memlimit" >&5
+ $as_echo "$ac_cv_lib_talloc_talloc_set_memlimit" >&6; }
+@@ -11057,487 +10379,6 @@ fi
+ 
+ 
+ 
+-execinfo_lib_dir=
+-
+-# Check whether --with-execinfo-lib-dir was given.
+-if test "${with_execinfo_lib_dir+set}" = set; then :
+-  withval=$with_execinfo_lib_dir;  case "$withval" in
+-    no)
+-        as_fn_error $? "Need execinfo-lib-dir" "$LINENO" 5
+-	;;
+-    yes)
+-	;;
+-    *)
+-	execinfo_lib_dir="$withval"
+-	;;
+-  esac
+-
+-fi
+-
+-
+-execinfo_include_dir=
+-
+-# Check whether --with-execinfo-include-dir was given.
+-if test "${with_execinfo_include_dir+set}" = set; then :
+-  withval=$with_execinfo_include_dir;  case "$withval" in
+-    no)
+-        as_fn_error $? "Need execinfo-include-dir" "$LINENO" 5
+-	;;
+-    yes)
+-	;;
+-    *)
+-	execinfo_include_dir="$withval"
+-	;;
+-  esac
+-
+-fi
+-
+-
+-smart_try_dir=$execinfo_include_dir
+-
+-
+-ac_safe=`echo "execinfo.h" | sed 'y%./+-%__pm%'`
+-old_CPPFLAGS="$CPPFLAGS"
+-smart_include=
+-smart_include_dir="/usr/local/include /opt/include"
+-
+-_smart_try_dir=
+-_smart_include_dir=
+-
+-for _prefix in $smart_prefix ""; do
+-  for _dir in $smart_try_dir; do
+-    _smart_try_dir="${_smart_try_dir} ${_dir}/${_prefix}"
+-  done
+-
+-  for _dir in $smart_include_dir; do
+-    _smart_include_dir="${_smart_include_dir} ${_dir}/${_prefix}"
+-  done
+-done
+-
+-if test "x$_smart_try_dir" != "x"; then
+-  for try in $_smart_try_dir; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for execinfo.h in $try" >&5
+-$as_echo_n "checking for execinfo.h in $try... " >&6; }
+-    CPPFLAGS="-isystem $try $old_CPPFLAGS"
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-		    #include <execinfo.h>
+-int
+-main ()
+-{
+-int a = 1;
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_compile "$LINENO"; then :
+-
+-		     smart_include="-isystem $try"
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		     break
+-
+-else
+-
+-		     smart_include=
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-  done
+-  CPPFLAGS="$old_CPPFLAGS"
+-fi
+-
+-if test "x$smart_include" = "x"; then
+-  for _prefix in $smart_prefix; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ${_prefix}/execinfo.h" >&5
+-$as_echo_n "checking for ${_prefix}/execinfo.h... " >&6; }
+-
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-		    #include <execinfo.h>
+-int
+-main ()
+-{
+-int a = 1;
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_compile "$LINENO"; then :
+-
+-		     smart_include="-isystem ${_prefix}/"
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		     break
+-
+-else
+-
+-		     smart_include=
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-  done
+-fi
+-
+-if test "x$smart_include" = "x"; then
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for execinfo.h" >&5
+-$as_echo_n "checking for execinfo.h... " >&6; }
+-
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-		    #include <execinfo.h>
+-int
+-main ()
+-{
+-int a = 1;
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_compile "$LINENO"; then :
+-
+-		     smart_include=" "
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		     break
+-
+-else
+-
+-		     smart_include=
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-fi
+-
+-if test "x$smart_include" = "x"; then
+-
+-  for prefix in $smart_prefix; do
+-
+-
+-if test "x$LOCATE" != "x"; then
+-        DIRS=
+-  file="${_prefix}/${1}"
+-
+-  for x in `${LOCATE} $file 2>/dev/null`; do
+-                                        base=`echo $x | sed "s%/${file}%%"`
+-    if test "x$x" = "x$base"; then
+-      continue;
+-    fi
+-
+-    dir=`${DIRNAME} $x 2>/dev/null`
+-                exclude=`echo ${dir} | ${GREP} /home`
+-    if test "x$exclude" != "x"; then
+-      continue
+-    fi
+-
+-                    already=`echo \$_smart_include_dir ${DIRS} | ${GREP} ${dir}`
+-    if test "x$already" = "x"; then
+-      DIRS="$DIRS $dir"
+-    fi
+-  done
+-fi
+-
+-eval "_smart_include_dir=\"\$_smart_include_dir $DIRS\""
+-
+-  done
+-
+-
+-if test "x$LOCATE" != "x"; then
+-        DIRS=
+-  file=execinfo.h
+-
+-  for x in `${LOCATE} $file 2>/dev/null`; do
+-                                        base=`echo $x | sed "s%/${file}%%"`
+-    if test "x$x" = "x$base"; then
+-      continue;
+-    fi
+-
+-    dir=`${DIRNAME} $x 2>/dev/null`
+-                exclude=`echo ${dir} | ${GREP} /home`
+-    if test "x$exclude" != "x"; then
+-      continue
+-    fi
+-
+-                    already=`echo \$_smart_include_dir ${DIRS} | ${GREP} ${dir}`
+-    if test "x$already" = "x"; then
+-      DIRS="$DIRS $dir"
+-    fi
+-  done
+-fi
+-
+-eval "_smart_include_dir=\"\$_smart_include_dir $DIRS\""
+-
+-
+-  for try in $_smart_include_dir; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for execinfo.h in $try" >&5
+-$as_echo_n "checking for execinfo.h in $try... " >&6; }
+-    CPPFLAGS="-isystem $try $old_CPPFLAGS"
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-		    #include <execinfo.h>
+-int
+-main ()
+-{
+-int a = 1;
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_compile "$LINENO"; then :
+-
+-		     smart_include="-isystem $try"
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		     break
+-
+-else
+-
+-		     smart_include=
+-		     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-  done
+-  CPPFLAGS="$old_CPPFLAGS"
+-fi
+-
+-if test "x$smart_include" != "x"; then
+-  eval "ac_cv_header_$ac_safe=yes"
+-  CPPFLAGS="$smart_include $old_CPPFLAGS"
+-  SMART_CPPFLAGS="$smart_include $SMART_CPPFLAGS"
+-fi
+-
+-smart_prefix=
+-
+-if test "x$ac_cv_header_execinfo_h" = "xyes"; then
+-  smart_try_dir=$execinfo_lib_dir
+-
+-
+-sm_lib_safe=`echo "execinfo" | sed 'y%./+-%__p_%'`
+-sm_func_safe=`echo "backtrace_symbols" | sed 'y%./+-%__p_%'`
+-
+-old_LIBS="$LIBS"
+-old_CPPFLAGS="$CPPFLAGS"
+-smart_lib=
+-smart_ldflags=
+-smart_lib_dir=
+-
+-if test "x$smart_try_dir" != "x"; then
+-  for try in $smart_try_dir; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for backtrace_symbols in -lexecinfo in $try" >&5
+-$as_echo_n "checking for backtrace_symbols in -lexecinfo in $try... " >&6; }
+-    LIBS="-lexecinfo $old_LIBS"
+-    CPPFLAGS="-L$try -Wl,-rpath,$try $old_CPPFLAGS"
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-extern char backtrace_symbols();
+-int
+-main ()
+-{
+-backtrace_symbols()
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_link "$LINENO"; then :
+-
+-		 smart_lib="-lexecinfo"
+-		 smart_ldflags="-L$try -Wl,-rpath,$try"
+-		 { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		 break
+-
+-else
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-fi
+-rm -f core conftest.err conftest.$ac_objext \
+-    conftest$ac_exeext conftest.$ac_ext
+-  done
+-  LIBS="$old_LIBS"
+-  CPPFLAGS="$old_CPPFLAGS"
+-fi
+-
+-if test "x$smart_lib" = "x"; then
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for backtrace_symbols in -lexecinfo" >&5
+-$as_echo_n "checking for backtrace_symbols in -lexecinfo... " >&6; }
+-  LIBS="-lexecinfo $old_LIBS"
+-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-extern char backtrace_symbols();
+-int
+-main ()
+-{
+-backtrace_symbols()
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_link "$LINENO"; then :
+-
+-	        smart_lib="-lexecinfo"
+-	        { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-
+-else
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-fi
+-rm -f core conftest.err conftest.$ac_objext \
+-    conftest$ac_exeext conftest.$ac_ext
+-  LIBS="$old_LIBS"
+-fi
+-
+-if test "x$smart_lib" = "x"; then
+-
+-
+-if test "x$LOCATE" != "x"; then
+-        DIRS=
+-  file=libexecinfo${libltdl_cv_shlibext}
+-
+-  for x in `${LOCATE} $file 2>/dev/null`; do
+-                                        base=`echo $x | sed "s%/${file}%%"`
+-    if test "x$x" = "x$base"; then
+-      continue;
+-    fi
+-
+-    dir=`${DIRNAME} $x 2>/dev/null`
+-                exclude=`echo ${dir} | ${GREP} /home`
+-    if test "x$exclude" != "x"; then
+-      continue
+-    fi
+-
+-                    already=`echo \$smart_lib_dir ${DIRS} | ${GREP} ${dir}`
+-    if test "x$already" = "x"; then
+-      DIRS="$DIRS $dir"
+-    fi
+-  done
+-fi
+-
+-eval "smart_lib_dir=\"\$smart_lib_dir $DIRS\""
+-
+-
+-
+-if test "x$LOCATE" != "x"; then
+-        DIRS=
+-  file=libexecinfo.a
+-
+-  for x in `${LOCATE} $file 2>/dev/null`; do
+-                                        base=`echo $x | sed "s%/${file}%%"`
+-    if test "x$x" = "x$base"; then
+-      continue;
+-    fi
+-
+-    dir=`${DIRNAME} $x 2>/dev/null`
+-                exclude=`echo ${dir} | ${GREP} /home`
+-    if test "x$exclude" != "x"; then
+-      continue
+-    fi
+-
+-                    already=`echo \$smart_lib_dir ${DIRS} | ${GREP} ${dir}`
+-    if test "x$already" = "x"; then
+-      DIRS="$DIRS $dir"
+-    fi
+-  done
+-fi
+-
+-eval "smart_lib_dir=\"\$smart_lib_dir $DIRS\""
+-
+-
+-  for try in $smart_lib_dir /usr/local/lib /opt/lib; do
+-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for backtrace_symbols in -lexecinfo in $try" >&5
+-$as_echo_n "checking for backtrace_symbols in -lexecinfo in $try... " >&6; }
+-    LIBS="-lexecinfo $old_LIBS"
+-    CPPFLAGS="-L$try -Wl,-rpath,$try $old_CPPFLAGS"
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-extern char backtrace_symbols();
+-int
+-main ()
+-{
+-backtrace_symbols()
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_link "$LINENO"; then :
+-
+-		  smart_lib="-lexecinfo"
+-		  smart_ldflags="-L$try -Wl,-rpath,$try"
+-		  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-		  break
+-
+-else
+-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-fi
+-rm -f core conftest.err conftest.$ac_objext \
+-    conftest$ac_exeext conftest.$ac_ext
+-  done
+-  LIBS="$old_LIBS"
+-  CPPFLAGS="$old_CPPFLAGS"
+-fi
+-
+-if test "x$smart_lib" != "x"; then
+-  eval "ac_cv_lib_${sm_lib_safe}_${sm_func_safe}=yes"
+-  LIBS="$smart_ldflags $smart_lib $old_LIBS"
+-  SMART_LIBS="$smart_ldflags $smart_lib $SMART_LIBS"
+-fi
+-
+-  if test "x$ac_cv_lib_execinfo_backtrace_symbols" != "xyes"; then
+-        { $as_echo "$as_me:${as_lineno-$LINENO}: checking if execinfo provided as part of libc" >&5
+-$as_echo_n "checking if execinfo provided as part of libc... " >&6; }
+-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+-/* end confdefs.h.  */
+-
+-        #include <execinfo.h>
+-
+-int
+-main ()
+-{
+-
+-        void *sym[1];
+-        backtrace_symbols(&sym, sizeof(sym))
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-if ac_fn_c_try_link "$LINENO"; then :
+-
+-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+-$as_echo "yes" >&6; }
+-        ac_cv_lib_execinfo_backtrace_symbols="yes"
+-
+-else
+-
+-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+-$as_echo "no" >&6; }
+-
+-
+-fi
+-rm -f core conftest.err conftest.$ac_objext \
+-    conftest$ac_exeext conftest.$ac_ext
+-  fi
+-
+-  if test "x$ac_cv_lib_execinfo_backtrace_symbols" = "xyes"; then
+-
+-$as_echo "#define HAVE_EXECINFO 1" >>confdefs.h
+-
+-  fi
+-fi
+-
+ PCRE=yes
+ 
+ # Check whether --with-pcre was given.
+-- 
+2.18.0
+

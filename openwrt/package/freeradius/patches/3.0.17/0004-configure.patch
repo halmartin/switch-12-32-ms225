@@ -1,0 +1,35 @@
+From 2e52b5875c7796c7dbc1c8d9a083cbc033682b72 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 19 Nov 2018 15:38:11 -0800
+Subject: [PATCH 04/15] configure
+
+Based on Peter Hurley's 003-configure patch for v2.2.5
+---
+ configure.ac | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index f155c800a7..9dac67e790 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1150,14 +1150,15 @@ if test "x$WITH_OPENSSL" = xyes; then
+       openssl/md4.h \
+       openssl/sha.h \
+       openssl/ssl.h \
+-      openssl/ocsp.h \
+-      openssl/engine.h,
++      openssl/ocsp.h,
+       [ OPENSSL_CPPFLAGS="$smart_include" ],
+       [
+         AC_MSG_FAILURE([failed locating OpenSSL headers. Use --with-openssl-include-dir=<path>, or --with-openssl=no (builds without OpenSSL)])
+       ]
+     )
+ 
++    AC_CHECK_HEADERS(openssl/engine.h, [], [])
++
+     AC_MSG_CHECKING([for OpenSSL version >= 0.9.7])
+     AC_EGREP_CPP(yes,
+       [#include <openssl/crypto.h>
+-- 
+2.18.0
+

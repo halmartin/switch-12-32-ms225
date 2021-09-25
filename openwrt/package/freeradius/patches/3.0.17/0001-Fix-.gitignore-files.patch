@@ -1,0 +1,80 @@
+From 85156accaf15a2767da7415667cfd45af1f173c8 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 19 Nov 2018 15:26:53 -0800
+Subject: [PATCH 01/15] Fix .gitignore files
+
+Several files included with the FreeRADIUS 3.0.17 source code are
+ignored by the .gitignore files, this updates those files so that it's
+easier to generate patches without accidentally removing files.
+---
+ .gitignore                       | 6 +++---
+ raddb/.gitignore                 | 2 +-
+ src/modules/rlm_cache/.gitignore | 2 +-
+ src/modules/rlm_sql/.gitignore   | 2 +-
+ src/tests/.gitignore             | 2 +-
+ 5 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index f4cb71a327..bc4c6dcd23 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -13,7 +13,7 @@
+ *.rej
+ .libs
+ .depends
+-*.log
++#*.log
+ *.substvars
+ *-stamp
+ *.swp
+@@ -56,8 +56,8 @@ config.status
+ Make.inc
+ libtool
+ autom4te.cache
+-config.guess
+-config.sub
++# config.guess
++# config.sub
+ config.h
+ src/main/radattr
+ src/modules/lib/
+diff --git a/raddb/.gitignore b/raddb/.gitignore
+index 9daa835c1e..dcb05193e8 100644
+--- a/raddb/.gitignore
++++ b/raddb/.gitignore
+@@ -1,4 +1,4 @@
+-dictionary
++# dictionary
+ radiusd.conf
+ sites-enabled
+ mods-enabled
+diff --git a/src/modules/rlm_cache/.gitignore b/src/modules/rlm_cache/.gitignore
+index 01a5daa3cc..734a8f09dc 100644
+--- a/src/modules/rlm_cache/.gitignore
++++ b/src/modules/rlm_cache/.gitignore
+@@ -1 +1 @@
+-all.mk
++#all.mk
+diff --git a/src/modules/rlm_sql/.gitignore b/src/modules/rlm_sql/.gitignore
+index 01a5daa3cc..734a8f09dc 100644
+--- a/src/modules/rlm_sql/.gitignore
++++ b/src/modules/rlm_sql/.gitignore
+@@ -1 +1 @@
+-all.mk
++#all.mk
+diff --git a/src/tests/.gitignore b/src/tests/.gitignore
+index 203576cece..083849b23b 100644
+--- a/src/tests/.gitignore
++++ b/src/tests/.gitignore
+@@ -4,7 +4,7 @@
+ .request
+ *.ok
+ dictionary
+-test.conf
++#test.conf
+ radius.log
+ radiusd.pid
+ eapol_test
+-- 
+2.18.0
+

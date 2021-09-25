@@ -1,0 +1,27 @@
+From c6ac0e64f19e02a8cb8f59960ebf1f522958c6a7 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 19 Nov 2018 15:39:43 -0800
+Subject: [PATCH 05/15] configure
+
+---
+ configure.ac | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 9dac67e790..a9da6ee8a5 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1661,10 +1661,6 @@ dnl #
+ dnl #  check for some compiler features
+ dnl #
+ FR_TLS
+-FR_HAVE_BUILTIN_CHOOSE_EXPR
+-FR_HAVE_BUILTIN_TYPES_COMPATIBLE_P
+-FR_HAVE_BUILTIN_BSWAP64
+-FR_HAVE_BOUNDED_ATTRIBUTE
+ 
+ dnl #############################################################
+ dnl #
+-- 
+2.18.0
+

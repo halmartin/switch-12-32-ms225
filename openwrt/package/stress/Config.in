@@ -1,0 +1,9 @@
+config BR2_PACKAGE_STRESS
+       prompt "stress............................ System Stress Utility"
+       bool
+       default y
+       help
+         stress is a simple tool that imposes certain types of compute stress
+         on UNIX-like operating systems.
+
+         http://openwrt.org/packages/pkgdata_lede17_1/stress

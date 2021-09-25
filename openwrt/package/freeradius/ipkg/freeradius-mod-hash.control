@@ -1,0 +1,5 @@
+Package: freeradius-mod-hash
+Priority: optional
+Section: net
+Description: Meraki: crypt hash User-Password for FreeRADIUS
+Depends: freeradius

@@ -1,0 +1,27 @@
+From e3836b9517cfd2279a916601a3b37ca21a4119a1 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 14 Jan 2019 16:54:25 -0800
+Subject: [PATCH 5/8] remove exec permissions from libtalloc.a
+
+For some reason the Makefile makes libtalloc.a executable, this changes
+the install command to set read/write permissions only.
+---
+ Makefile.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile.in b/Makefile.in
+index 1e33cbb..7901d14 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -35,7 +35,7 @@ libtalloc.a: $(LIBOBJ)
+ 
+ install: all 
+ 	${INSTALLCMD} -d $(DESTDIR)${libdir}
+-	${INSTALLCMD} -m 755 libtalloc.a $(DESTDIR)$(libdir)
++	${INSTALLCMD} -m 644 libtalloc.a $(DESTDIR)$(libdir)
+ 	${INSTALLCMD} -d $(DESTDIR)${includedir}
+ 	${INSTALLCMD} -m 644 $(srcdir)/talloc.h $(DESTDIR)$(includedir)
+ 	${INSTALLCMD} -m 644 talloc.pc $(DESTDIR)$(libdir)/pkgconfig
+-- 
+2.20.1
+

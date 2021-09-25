@@ -1,0 +1,62 @@
+From 090e2cf54cc206bd6740b959069a2aef8346798f Mon Sep 17 00:00:00 2001
+From: Tobias Brunner <tobias@strongswan.org>
+Date: Wed, 6 Mar 2019 18:39:28 +0100
+Subject: [PATCH] vici: Correctly parse inactivity timeout as uint32_t
+
+Using parse_time() directly actually overwrites the next member in the
+child_cfg_create_t struct, which is start_action, which can cause
+incorrect configs if inactivity is parsed after start_action.
+
+Fixes #2954.
+---
+ src/libcharon/plugins/vici/vici_config.c | 20 ++++++++++++++++++--
+ 1 file changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/src/libcharon/plugins/vici/vici_config.c b/src/libcharon/plugins/vici/vici_config.c
+index 8579819..f1ddde1 100644
+--- a/src/libcharon/plugins/vici/vici_config.c
++++ b/src/libcharon/plugins/vici/vici_config.c
+@@ -2,7 +2,7 @@
+  * Copyright (C) 2014 Martin Willi
+  * Copyright (C) 2014 revosec AG
+  *
+- * Copyright (C) 2015-2017 Tobias Brunner
++ * Copyright (C) 2015-2019 Tobias Brunner
+  * Copyright (C) 2015-2016 Andreas Steffen
+  * HSR Hochschule fuer Technik Rapperswil
+  *
+@@ -1128,6 +1128,22 @@ CALLBACK(parse_time, bool,
+ }
+ 
+ /**
++ * Parse a relative time (32-bit)
++ */
++CALLBACK(parse_time32, bool,
++	uint32_t *out, chunk_t v)
++{
++	uint64_t time;
++
++	if (parse_time(&time, v))
++	{
++		*out = time;
++		return TRUE;
++	}
++	return FALSE;
++}
++
++/**
+  * Parse byte volume
+  */
+ CALLBACK(parse_bytes, bool,
+@@ -1657,7 +1673,7 @@ CALLBACK(child_kv, bool,
+ 		{ "start_action",		parse_action,		&child->cfg.start_action			},
+ 		{ "close_action",		parse_action,		&child->cfg.close_action			},
+ 		{ "ipcomp",				parse_opt_ipcomp,	&child->cfg.options					},
+-		{ "inactivity",			parse_time,			&child->cfg.inactivity				},
++		{ "inactivity",			parse_time32,		&child->cfg.inactivity				},
+ 		{ "reqid",				parse_uint32,		&child->cfg.reqid					},
+ 		{ "mark_in",			parse_mark,			&child->cfg.mark_in					},
+ 		{ "mark_in_sa",			parse_opt_mark_in,	&child->cfg.options					},
+-- 
+2.7.4
+

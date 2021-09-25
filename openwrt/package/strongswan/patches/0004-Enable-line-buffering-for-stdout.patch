@@ -1,0 +1,29 @@
+From a2ae377dba579425f50faa73471b85638158dde8 Mon Sep 17 00:00:00 2001
+From: Rohan Shethia <rshethia@meraki.com>
+Date: Mon, 4 Nov 2019 10:03:57 -0800
+Subject: [PATCH] Enable-line-buffering-for-stdout
+
+---
+ src/libcharon/bus/listeners/file_logger.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/libcharon/bus/listeners/file_logger.c b/src/libcharon/bus/listeners/file_logger.c
+index d1f1802..2492061 100644
+--- a/src/libcharon/bus/listeners/file_logger.c
++++ b/src/libcharon/bus/listeners/file_logger.c
+@@ -233,6 +233,12 @@ METHOD(file_logger_t, open_, void,
+ 	else if (streq(this->filename, "stdout"))
+ 	{
+ 		file = stdout;
++#ifdef HAVE_SETLINEBUF
++		if (flush_line)
++		{
++			setlinebuf(file);
++		}
++#endif /* HAVE_SETLINEBUF */
+ 	}
+ 	else
+ 	{
+-- 
+2.22.0
+

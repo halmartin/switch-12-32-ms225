@@ -1,0 +1,29 @@
+From fdbfac131f538731a185bc98ec2a61498f77bcd9 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 19 Nov 2018 15:40:38 -0800
+Subject: [PATCH 06/15] nobacktrace
+
+Based on Jignesh's 004-nobacktrace patch for v2.2.5.
+
+	"We do not include backtrace in our openwrt.
+	So removing calls to backtrace."
+---
+ src/lib/debug.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/lib/debug.c b/src/lib/debug.c
+index 359bf52928..590310ba4e 100644
+--- a/src/lib/debug.c
++++ b/src/lib/debug.c
+@@ -30,6 +30,8 @@
+ #  include <malloc.h>
+ #endif
+ 
++#undef HAVE_EXECINFO_H
++
+ /*
+  *	runtime backtrace functions are not POSIX but are included in
+  *	glibc, OSX >= 10.5 and various BSDs
+-- 
+2.18.0
+

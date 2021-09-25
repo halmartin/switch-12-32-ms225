@@ -1,0 +1,5 @@
+Package: lighttpd-mod-authn-file
+Priority: optional
+Section: net
+Description: file-based authentication module
+Depends: lighttpd

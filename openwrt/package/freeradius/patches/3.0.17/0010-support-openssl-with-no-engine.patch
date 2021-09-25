@@ -1,0 +1,40 @@
+From 036ee5bf1f4a53f6ebc1daf0f721a3ee926e0912 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 19 Nov 2018 15:58:59 -0800
+Subject: [PATCH 10/15] support-openssl-with-no-engine
+
+---
+ src/include/tls-h | 2 ++
+ src/main/tls.c    | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/src/include/tls-h b/src/include/tls-h
+index ee4ea76396..b2c92dbded 100644
+--- a/src/include/tls-h
++++ b/src/include/tls-h
+@@ -39,6 +39,8 @@ RCSIDH(tls_h, "$Id$")
+ #include <openssl/err.h>
+ #ifdef HAVE_OPENSSL_ENGINE_H
+ #  include <openssl/engine.h>
++#else
++#  include <openssl/rand.h>
+ #endif
+ #include <openssl/ssl.h>
+ 
+diff --git a/src/main/tls.c b/src/main/tls.c
+index 6ab4f2cb9a..7eb71d8ff3 100644
+--- a/src/main/tls.c
++++ b/src/main/tls.c
+@@ -2677,7 +2677,9 @@ void tls_global_cleanup(void)
+ #elif OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+ 	ERR_remove_thread_state(NULL);
+ #endif
++#ifdef HAVE_OPENSSL_ENGINE_H
+ 	ENGINE_cleanup();
++#endif
+ 	CONF_modules_unload(1);
+ 	ERR_free_strings();
+ 	EVP_cleanup();
+-- 
+2.18.0
+

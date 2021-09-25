@@ -1,0 +1,172 @@
+From d95844c5e90ad56f663952b18cf7258aeebc13ee Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 19 Nov 2018 15:55:11 -0800
+Subject: [PATCH 08/15] remove-execinfo-lcap
+
+Remove execinfo and libcap searching from configure.ac, these are not
+required for FreeRADIUS's core functionality.
+---
+ configure.ac | 133 ---------------------------------------------------
+ 1 file changed, 133 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index a9da6ee8a5..a99788533d 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -944,50 +944,6 @@ fi
+ dnl Set by FR_SMART_CHECKLIB
+ LIBS="${old_LIBS}"
+ 
+-dnl Check for cap
+-dnl extra argument: --with-cap-lib-dir=DIR
+-cap_lib_dir=
+-AC_ARG_WITH(cap-lib-dir,
+-  [AS_HELP_STRING([--with-cap-lib-dir=DIR],
+-  [directory in which to look for cap library files])],
+-  [case "$withval" in
+-    no)
+-      AC_MSG_ERROR([Need cap-lib-dir])
+-      ;;
+-    yes)
+-      ;;
+-    *)
+-      cap_lib_dir="$withval"
+-      ;;
+-  esac])
+-
+-dnl extra argument: --with-cap-include-dir=DIR
+-cap_include_dir=
+-AC_ARG_WITH(cap-include-dir,
+-  [AS_HELP_STRING([--with-cap-include-dir=DIR],
+-  [directory in which to look for cap include files])],
+-  [case "$withval" in
+-    no)
+-      AC_MSG_ERROR([Need cap-include-dir])
+-      ;;
+-    yes)
+-      ;;
+-    *)
+-      cap_include_dir="$withval"
+-      ;;
+-  esac])
+-
+-smart_try_dir="$cap_lib_dir"
+-FR_SMART_CHECK_LIB(cap, cap_get_proc)
+-if test "x$ac_cv_lib_cap_cap_get_proc" != "xyes"; then
+-  AC_MSG_WARN([cap library not found, debugger checks will not be enabled. Use --with-cap-lib-dir=<path>.])
+-else
+-  AC_DEFINE(HAVE_LIBCAP, 1,
+-    [Define to 1 if you have the `cap' library (-lcap).]
+-  )
+-  HAVE_LIBCAP=1
+-fi
+-
+ VL_LIB_READLINE
+ 
+ dnl #############################################################
+@@ -1245,24 +1201,6 @@ else
+   fi
+ fi
+ 
+-dnl #
+-dnl #  Check the CAP includes for debugger checks
+-dnl #
+-if test "x$HAVE_LIBCAP" = x; then
+-  AC_MSG_NOTICE([skipping test for cap.h.])
+-else
+-  dnl #
+-  dnl # Check for CAP header files
+-  dnl #
+-  smart_try_dir="$cap_include_dir"
+-  FR_SMART_CHECK_INCLUDE([sys/capability.h])
+-  if test "x$ac_cv_header_sys_capability_h" = "xyes"; then
+-    AC_DEFINE(HAVE_CAPABILITY_H, 1, [Define to 1 if you have the <sys/capability.h> header file.])
+-  else
+-    AC_MSG_WARN([cap headers not found, will not perform debugger checks. Use --with-cap-include-dir=<path>.])
+-  fi
+-fi
+-
+ dnl #############################################################
+ dnl #
+ dnl #  4. Checks for typedefs
+@@ -1698,77 +1636,6 @@ AC_CHECK_LIB(cipher, setkey,
+ )
+ AC_SUBST(CRYPTLIB)
+ 
+-dnl #
+-dnl #  Check for libexecinfo support, on some systems this is built into libc
+-dnl #  on others it's a separate library.
+-dnl #
+-dnl extra argument: --with-execinfo-lib-dir
+-execinfo_lib_dir=
+-AC_ARG_WITH(execinfo-lib-dir,
+-[AS_HELP_STRING([--with-execinfo-lib-dir=DIR],
+-[directory in which to look for execinfo library files])],
+-[ case "$withval" in
+-    no)
+-        AC_MSG_ERROR([Need execinfo-lib-dir])
+-	;;
+-    yes)
+-	;;
+-    *)
+-	execinfo_lib_dir="$withval"
+-	;;
+-  esac ]
+-)
+-
+-dnl extra argument: --with-execinfo-include-dir
+-execinfo_include_dir=
+-AC_ARG_WITH(execinfo-include-dir,
+-[AS_HELP_STRING([--with-execinfo-include-dir=DIR],
+-[directory in which to look for execinfo include files])],
+-[ case "$withval" in
+-    no)
+-        AC_MSG_ERROR([Need execinfo-include-dir])
+-	;;
+-    yes)
+-	;;
+-    *)
+-	execinfo_include_dir="$withval"
+-	;;
+-  esac ]
+-)
+-
+-dnl #
+-dnl #  Look for execinfo.h and symbols
+-dnl #
+-smart_try_dir=$execinfo_include_dir
+-FR_SMART_CHECK_INCLUDE(execinfo.h)
+-if test "x$ac_cv_header_execinfo_h" = "xyes"; then
+-  smart_try_dir=$execinfo_lib_dir
+-  FR_SMART_CHECK_LIB(execinfo, backtrace_symbols)
+-  if test "x$ac_cv_lib_execinfo_backtrace_symbols" != "xyes"; then
+-    dnl # Might be provided as part of libc
+-    AC_MSG_CHECKING([if execinfo provided as part of libc])
+-    AC_TRY_LINK(
+-      [
+-        #include <execinfo.h>
+-      ],
+-      [
+-        void *sym[1];
+-        backtrace_symbols(&sym, sizeof(sym)) ],
+-      [
+-        AC_MSG_RESULT(yes)
+-        ac_cv_lib_execinfo_backtrace_symbols="yes"
+-      ],
+-      [
+-        AC_MSG_RESULT(no)
+-      ]
+-    )
+-  fi
+-
+-  if test "x$ac_cv_lib_execinfo_backtrace_symbols" = "xyes"; then
+-    AC_DEFINE(HAVE_EXECINFO, [1], [define this if we have <execinfo.h> and symbols])
+-  fi
+-fi
+-
+ dnl #
+ dnl #  Check for regular expression support.
+ dnl #
+-- 
+2.18.0
+

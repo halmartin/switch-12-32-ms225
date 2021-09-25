@@ -1,0 +1,75 @@
+commit 9d3e8edf0fc3588ef745ea5f941c9160959f41fa
+Author: pbuonado <pbuonado@meraki.com>
+Date:   Mon Feb 3 15:24:24 2020 -0800
+
+    Allow pcap_open to accept UNIX sockets
+
+diff --git a/savefile.c b/savefile.c
+index 5b1e14c..965e621 100644
+--- a/savefile.c
++++ b/savefile.c
+@@ -38,6 +38,13 @@
+ #include <fcntl.h>
+ #endif /* _WIN32 */
+ 
++#if !defined(WIN32) && !defined(MSDOS)
++#include <sys/socket.h>
++#include <sys/stat.h>
++#include <sys/un.h>
++#include <unistd.h>
++#endif
++
+ #include <errno.h>
+ #include <memory.h>
+ #include <stdio.h>
+@@ -271,6 +278,42 @@ pcap_open_offline_with_tstamp_precision(const char *fname, u_int precision,
+ #endif
+ 	}
+ 	else {
++#if !defined(_WIN32) && !defined(MSDOS)
++		struct stat st;
++		int fd;
++
++		if (stat(fname, &st) != 0) {
++			fp = NULL;
++		} else if (S_ISSOCK(st.st_mode)) {
++			struct sockaddr_un sa;
++
++			if (strlen(fname) > (sizeof(sa.sun_path)-1)) {
++				snprintf(errbuf, PCAP_ERRBUF_SIZE,
++					 "filename too long");
++				return (NULL);
++			}
++			fd = socket(AF_UNIX, SOCK_STREAM, 0);
++			if (fd < 0) {
++				snprintf(errbuf, PCAP_ERRBUF_SIZE,
++					 "socket: %s", pcap_strerror(errno));
++				return (NULL);
++			}
++			sa.sun_family = AF_UNIX;
++			strcpy(sa.sun_path, fname);
++			if (connect(fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
++				snprintf(errbuf, PCAP_ERRBUF_SIZE, "%s: %s",
++					 fname,
++					 pcap_strerror(errno));
++				close(fd);
++				return (NULL);
++			}
++			fp = fdopen(fd, "r");
++			if (fp == NULL)
++				close(fd);
++		} else {
++			fp = fopen(fname, "r");
++		}
++#else
+ 		/*
+ 		 * "b" is supported as of C90, so *all* UN*Xes should
+ 		 * support it, even though it does nothing.  It's
+@@ -278,6 +321,7 @@ pcap_open_offline_with_tstamp_precision(const char *fname, u_int precision,
+ 		 * and must be read in binary mode.
+ 		 */
+ 		fp = fopen(fname, "rb");
++#endif
+ 		if (fp == NULL) {
+ 			pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
+ 			    errno, "%s", fname);

@@ -1,0 +1,230 @@
+commit 42e14b36b5ae23b57c3e50d72dc4a9cdbfcda973
+Author: pbuonado <pbuonado@meraki.com>
+Date:   Thu Feb 13 09:25:31 2020 -0800
+
+    Patch 960
+
+diff --git a/src/mod_openssl.c b/src/mod_openssl.c
+index 27015f9..e0e17ee 100644
+--- a/src/mod_openssl.c
++++ b/src/mod_openssl.c
+@@ -13,6 +13,7 @@
+ #include "sys-crypto.h"
+ 
+ #include <openssl/ssl.h>
++#include <openssl/engine.h>
+ #include <openssl/bio.h>
+ #include <openssl/bn.h>
+ #include <openssl/err.h>
+@@ -40,6 +41,7 @@
+ 
+ typedef struct {
+     SSL_CTX *ssl_ctx; /* not patched */
++    ENGINE *ssl_hwimpl; /* not patched */
+     /* SNI per host: with COMP_SERVER_SOCKET, COMP_HTTP_SCHEME, COMP_HTTP_HOST */
+     EVP_PKEY *ssl_pemfile_pkey;
+     X509 *ssl_pemfile_x509;
+@@ -62,6 +64,9 @@ typedef struct {
+     unsigned short ssl_use_sslv2;
+     unsigned short ssl_use_sslv3;
+     buffer *ssl_pemfile;
++    buffer *ssl_hwimpl_name;
++    buffer *ssl_hwimpl_sopath;
++    buffer *ssl_hwimpl_keyid;
+     buffer *ssl_privkey;
+     buffer *ssl_ca_file;
+     buffer *ssl_ca_crl_file;
+@@ -79,6 +84,7 @@ typedef struct {
+ } plugin_data;
+ 
+ static int ssl_is_init;
++static int ssl_hw_is_init;
+ /* need assigned p->id for deep access of module handler_ctx for connection
+  *   i.e. handler_ctx *hctx = con->plugin_ctx[plugin_data_singleton->id]; */
+ static plugin_data *plugin_data_singleton;
+@@ -143,6 +149,9 @@ FREE_FUNC(mod_openssl_free)
+             buffer_free(s->ssl_cipher_list);
+             buffer_free(s->ssl_dh_file);
+             buffer_free(s->ssl_ec_curve);
++            buffer_free(s->ssl_hwimpl_name);
++            buffer_free(s->ssl_hwimpl_sopath);
++            buffer_free(s->ssl_hwimpl_keyid);
+             buffer_free(s->ssl_verifyclient_username);
+             array_free(s->ssl_conf_cmd);
+             buffer_free(s->ssl_acme_tls_1);
+@@ -151,6 +160,10 @@ FREE_FUNC(mod_openssl_free)
+             SSL_CTX_free(s->ssl_ctx);
+             EVP_PKEY_free(s->ssl_pemfile_pkey);
+             X509_free(s->ssl_pemfile_x509);
++            /* Release the functional reference from ENGINE_init() */
++            ENGINE_finish(s->ssl_hwimpl);
++            /* Release the structural reference from ENGINE_by_id() */
++            ENGINE_free(s->ssl_hwimpl);
+             if (NULL != s->ssl_ca_file_cert_names)
+                 sk_X509_NAME_pop_free(s->ssl_ca_file_cert_names,X509_NAME_free);
+         }
+@@ -523,6 +536,32 @@ error:
+     return NULL;
+ }
+ 
++static EVP_PKEY* evp_pkey_load_hwimpl(server *srv, plugin_config *s) {
++    static EVP_PKEY *x = NULL;
++
++
++    ENGINE *e = s->ssl_hwimpl;
++    if (NULL == e) {
++        log_error_write(srv, __FILE__, __LINE__, "ss", "SSL:",
++                        "hwimpl not set!");
++        goto error;
++    }
++
++    if (NULL == x) {
++        x = ENGINE_load_private_key(e, s->ssl_hwimpl_keyid->ptr, NULL, 0);
++    }
++
++    if (NULL == x) {
++        log_error_write(srv, __FILE__, __LINE__, "SSS",
++                        "SSL: couldn't load private key '", s->ssl_hwimpl_keyid->ptr, "' from hardware engine");
++        goto error;
++    }
++
++    return x;
++
++error:
++    return NULL;
++}
+ 
+ static int
+ network_openssl_load_pemfile (server *srv, plugin_config *s, size_t ndx)
+@@ -542,9 +581,13 @@ network_openssl_load_pemfile (server *srv, plugin_config *s, size_t ndx)
+ 
+     s->ssl_pemfile_x509 = x509_load_pem_file(srv, s->ssl_pemfile->ptr);
+     if (NULL == s->ssl_pemfile_x509) return -1;
+-    s->ssl_pemfile_pkey = !buffer_string_is_empty(s->ssl_privkey)
+-      ? evp_pkey_load_pem_file(srv, s->ssl_privkey->ptr)
+-      : evp_pkey_load_pem_file(srv, s->ssl_pemfile->ptr);
++    if (!buffer_string_is_empty(s->ssl_hwimpl_name) && !buffer_string_is_empty(s->ssl_hwimpl_keyid)) {
++        s->ssl_pemfile_pkey = evp_pkey_load_hwimpl(srv, s);
++    } else {
++        s->ssl_pemfile_pkey = !buffer_string_is_empty(s->ssl_privkey)
++            ? evp_pkey_load_pem_file(srv, s->ssl_privkey->ptr)
++            : evp_pkey_load_pem_file(srv, s->ssl_pemfile->ptr);
++    }
+     if (NULL == s->ssl_pemfile_pkey) return -1;
+ 
+     if (!X509_check_private_key(s->ssl_pemfile_x509, s->ssl_pemfile_pkey)) {
+@@ -847,6 +890,20 @@ network_init_ssl (server *srv, void *p_d)
+                                 "when ssl.engine = \"enable\"");
+                 return -1;
+             }
++            if (!buffer_string_is_empty(s->ssl_hwimpl_name) &&
++                buffer_string_is_empty(s->ssl_hwimpl_sopath)) {
++                log_error_write(srv, __FILE__, __LINE__, "s",
++                                "ssl.hwimpl.sopath must be set "
++                                "when ssl.hwimpl.name is set");
++                return -1;
++            }
++            if (buffer_string_is_empty(s->ssl_hwimpl_name) &&
++                !buffer_string_is_empty(s->ssl_hwimpl_sopath)) {
++                log_error_write(srv, __FILE__, __LINE__, "s",
++                                "ssl.hwimpl.name must be set "
++                                "when ssl.hwimpl.sopath is set");
++                return -1;
++            }
+         }
+ 
+         if (buffer_string_is_empty(s->ssl_pemfile)
+@@ -866,6 +923,7 @@ network_init_ssl (server *srv, void *p_d)
+             SSL_library_init();
+             OpenSSL_add_all_algorithms();
+           #endif
++            ENGINE_load_builtin_engines();
+             ssl_is_init = 1;
+ 
+             if (0 == RAND_status()) {
+@@ -878,6 +936,32 @@ network_init_ssl (server *srv, void *p_d)
+             force_assert(NULL != local_send_buffer);
+         }
+ 
++        if (!buffer_string_is_empty(s->ssl_hwimpl_name) &&
++            !buffer_string_is_empty(s->ssl_hwimpl_sopath)) {
++            if (NULL == (s->ssl_hwimpl = ENGINE_by_id("dynamic"))) {
++                log_error_write(srv, __FILE__, __LINE__, "ss", "SSL:",
++                                "couldn't load 'dynamic' ENGINE (is loadable ENGINE support available?)");
++                return -1;
++            }
++            ENGINE_ctrl_cmd_string(s->ssl_hwimpl, "SO_PATH", s->ssl_hwimpl_sopath->ptr, 0);
++            ENGINE_ctrl_cmd_string(s->ssl_hwimpl, "ID", s->ssl_hwimpl_name->ptr, 0);
++            ENGINE_ctrl_cmd_string(s->ssl_hwimpl, "LOAD", NULL, 0);
++
++            if (ssl_hw_is_init == 0) {
++                if (0 == ENGINE_init(s->ssl_hwimpl)) {
++                    log_error_write(srv, __FILE__, __LINE__, "SSS", "SSL:",
++                                    "couldn't load '", s->ssl_hwimpl_name->ptr, "' hardware ENGINE");
++                    return -1;
++                } else {
++                    ssl_hw_is_init = 1;
++                }
++            }
++
++            ENGINE_register_RSA(s->ssl_hwimpl);
++            ENGINE_register_ECDSA(s->ssl_hwimpl);
++            ENGINE_register_ECDH(s->ssl_hwimpl);
++        }
++
+         if (!buffer_string_is_empty(s->ssl_pemfile)) {
+           #ifdef OPENSSL_NO_TLSEXT
+             data_config *dc = (data_config *)srv->config_context->data[i];
+@@ -1232,6 +1316,9 @@ SETDEFAULTS_FUNC(mod_openssl_set_defaults)
+         { "ssl.openssl.ssl-conf-cmd",          NULL, T_CONFIG_ARRAY,   T_CONFIG_SCOPE_CONNECTION }, /* 20 */
+         { "ssl.acme-tls-1",                    NULL, T_CONFIG_STRING,  T_CONFIG_SCOPE_CONNECTION }, /* 21 */
+         { "ssl.privkey",                       NULL, T_CONFIG_STRING,  T_CONFIG_SCOPE_CONNECTION }, /* 22 */
++        { "ssl.hwimpl-name",                   NULL, T_CONFIG_STRING,  T_CONFIG_SCOPE_CONNECTION }, /* 23 */
++        { "ssl.hwimpl-sopath",                 NULL, T_CONFIG_STRING,  T_CONFIG_SCOPE_CONNECTION }, /* 24 */
++        { "ssl.hwimpl-keyid",                  NULL, T_CONFIG_STRING,  T_CONFIG_SCOPE_CONNECTION }, /* 25 */
+         { NULL,                         NULL, T_CONFIG_UNSET, T_CONFIG_SCOPE_UNSET }
+     };
+ 
+@@ -1246,6 +1333,9 @@ SETDEFAULTS_FUNC(mod_openssl_set_defaults)
+         s->ssl_enabled   = 0;
+         s->ssl_pemfile   = buffer_init();
+         s->ssl_privkey   = buffer_init();
++        s->ssl_hwimpl_name   = buffer_init();
++        s->ssl_hwimpl_sopath = buffer_init();
++        s->ssl_hwimpl_keyid  = buffer_init();
+         s->ssl_ca_file   = buffer_init();
+         s->ssl_ca_crl_file = buffer_init();
+         s->ssl_ca_dn_file = buffer_init();
+@@ -1307,6 +1397,9 @@ SETDEFAULTS_FUNC(mod_openssl_set_defaults)
+         cv[20].destination = s->ssl_conf_cmd;
+         cv[21].destination = s->ssl_acme_tls_1;
+         cv[22].destination = s->ssl_privkey;
++        cv[23].destination = s->ssl_hwimpl_name;
++        cv[24].destination = s->ssl_hwimpl_sopath;
++        cv[25].destination = s->ssl_hwimpl_keyid;
+ 
+         p->config_storage[i] = s;
+ 
+@@ -1360,6 +1453,9 @@ mod_openssl_patch_connection (server *srv, connection *con, handler_ctx *hctx)
+     /*PATCH(ssl_enabled);*//*(not patched)*/
+     /*PATCH(ssl_pemfile);*//*(not patched)*/
+     /*PATCH(ssl_privkey);*//*(not patched)*/
++    PATCH(ssl_hwimpl_name);
++    PATCH(ssl_hwimpl_sopath);
++    PATCH(ssl_hwimpl_keyid);
+     PATCH(ssl_pemfile_x509);
+     PATCH(ssl_pemfile_pkey);
+     PATCH(ssl_ca_file);
+@@ -1403,6 +1499,12 @@ mod_openssl_patch_connection (server *srv, connection *con, handler_ctx *hctx)
+                 /*PATCH(ssl_privkey);*//*(not patched)*/
+                 PATCH(ssl_pemfile_x509);
+                 PATCH(ssl_pemfile_pkey);
++            } else if (buffer_is_equal_string(du->key, CONST_STR_LEN("ssl.hwimpl-name"))) {
++                PATCH(ssl_hwimpl_name);
++            } else if (buffer_is_equal_string(du->key, CONST_STR_LEN("ssl.hwimpl-sopath"))) {
++                PATCH(ssl_hwimpl_sopath);
++            } else if (buffer_is_equal_string(du->key, CONST_STR_LEN("ssl.hwimpl-keyid"))) {
++                PATCH(ssl_hwimpl_keyid);
+             } else if (buffer_is_equal_string(du->key, CONST_STR_LEN("ssl.ca-file"))) {
+                 PATCH(ssl_ca_file);
+                 PATCH(ssl_ca_file_cert_names);

@@ -1,0 +1,22 @@
+commit 6c83b62ebe388b7641618a4da51737585bf1cc9d
+Author: Jignesh Patel <jignesh@meraki.com>
+Date:   Tue Aug 13 13:19:30 2019 -0700
+
+    Log when skipping settimeofday due to small offset.
+
+diff --git a/ntpd.c b/ntpd.c
+index 66b236e..179b820 100644
+--- a/ntpd.c
++++ b/ntpd.c
+@@ -354,8 +354,10 @@ ntpd_settime(double d)
+ 	time_t		tval;
+ 
+ 	/* if the offset is small, don't call settimeofday */
+-	if (d < SETTIME_MIN_OFFSET && d > -SETTIME_MIN_OFFSET)
++	if (d < SETTIME_MIN_OFFSET && d > -SETTIME_MIN_OFFSET) {
++		log_info("set local clock skipped due to small offset (-%d < %fs < %d)", SETTIME_MIN_OFFSET, d, SETTIME_MIN_OFFSET);
+ 		return;
++	}
+ 
+ 	if (gettimeofday(&curtime, NULL) == -1) {
+ 		log_warn("gettimeofday");

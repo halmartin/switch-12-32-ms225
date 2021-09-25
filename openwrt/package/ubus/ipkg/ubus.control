@@ -1,0 +1,4 @@
+Package: ubus
+Priority: optional
+Section: sys
+Description: IPC Daemon

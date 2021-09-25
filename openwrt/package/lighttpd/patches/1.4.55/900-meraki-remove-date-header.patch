@@ -1,0 +1,21 @@
+commit 6538465d0da1a9da9369cb1cc3f755991d2c07d8
+Author: pbuonado <pbuonado@meraki.com>
+Date:   Tue Feb 11 09:01:49 2020 -0800
+
+    900-meraki-remove-date-header.patch
+    
+    Originally written by cliff
+
+diff --git a/src/response.c b/src/response.c
+index 9682f3e..3f86faf 100644
+--- a/src/response.c
++++ b/src/response.c
+@@ -96,7 +96,7 @@ int http_response_write_header(server *srv, connection *con) {
+ 		buffer_append_string_buffer(b, ds->value);
+ 	}
+ 
+-	if (!(con->response.htags & HTTP_HEADER_DATE)) {
++	if (0 && !(con->response.htags & HTTP_HEADER_DATE)) {
+ 		/* HTTP/1.1 requires a Date: header */
+ 		buffer_append_string_len(b, CONST_STR_LEN("\r\nDate: "));
+ 

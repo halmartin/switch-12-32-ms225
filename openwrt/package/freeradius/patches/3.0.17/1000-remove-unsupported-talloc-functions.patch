@@ -1,0 +1,114 @@
+From 97bbc83870393dc2e828a48cd4afdc512fc74c4d Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Thu, 20 Dec 2018 14:48:16 -0800
+Subject: [PATCH 1000/1002] remove unsupported talloc functions
+
+There are several functions not available in the version of talloc we
+use that FreeRADIUS makes use of. This patch removes those with purely
+debugging or logging functionality, namely:
+talloc_set_log_fn()
+talloc_set_abort_fn()
+talloc_set_log_stderr()
+---
+ src/lib/debug.c      | 11 +++++++----
+ src/main/radclient.c |  3 ++-
+ src/main/radmin.c    |  3 ++-
+ src/main/radsniff.c  |  3 ++-
+ src/main/radwho.c    |  3 ++-
+ 5 files changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/src/lib/debug.c b/src/lib/debug.c
+index 590310ba4e..b2c35dc75b 100644
+--- a/src/lib/debug.c
++++ b/src/lib/debug.c
+@@ -878,8 +878,9 @@ static int _fr_disable_null_tracking(UNUSED bool *p)
+  */
+ void fr_talloc_fault_setup(void)
+ {
+-	talloc_set_log_fn(_fr_talloc_log);
+-	talloc_set_abort_fn(_fr_talloc_fault_simple);
++	// Not available in older versions of talloc
++	//talloc_set_log_fn(_fr_talloc_log);
++	//talloc_set_abort_fn(_fr_talloc_fault_simple);
+ }
+ 
+ /** Registers signal handlers to execute panic_action on fatal signal
+@@ -950,7 +951,8 @@ int fr_fault_setup(char const *cmd, char const *program)
+ 			debug_state = DEBUG_STATE_ATTACHED;
+ 		}
+ 
+-		talloc_set_log_fn(_fr_talloc_log);
++		// Not available in older versions of talloc
++		//talloc_set_log_fn(_fr_talloc_log);
+ 
+ 		/*
+ 		 *  These signals can't be properly dealt with in the debugger
+@@ -972,7 +974,8 @@ int fr_fault_setup(char const *cmd, char const *program)
+ 			 *  Use this instead of abort so we get a
+ 			 *  full backtrace with broken versions of LLDB
+ 			 */
+-			talloc_set_abort_fn(_fr_talloc_fault);
++			// Not available in older versions of talloc
++			//talloc_set_abort_fn(_fr_talloc_fault);
+ #endif
+ #ifdef SIGILL
+ 			if (fr_set_signal(SIGILL, fr_fault) < 0) return -1;
+diff --git a/src/main/radclient.c b/src/main/radclient.c
+index cd7118552c..b5c665d853 100644
+--- a/src/main/radclient.c
++++ b/src/main/radclient.c
+@@ -1172,7 +1172,8 @@ int main(int argc, char **argv)
+ 	}
+ #endif
+ 
+-	talloc_set_log_stderr();
++	// Not available in older versions of talloc
++	//talloc_set_log_stderr();
+ 
+ 	filename_tree = rbtree_create(NULL, filename_cmp, NULL, 0);
+ 	if (!filename_tree) {
+diff --git a/src/main/radmin.c b/src/main/radmin.c
+index 4e941aa123..262e694df7 100644
+--- a/src/main/radmin.c
++++ b/src/main/radmin.c
+@@ -352,7 +352,8 @@ int main(int argc, char **argv)
+ 	}
+ #endif
+ 
+-	talloc_set_log_stderr();
++	// Not available in older versions of talloc
++	//talloc_set_log_stderr();
+ 
+ 	if ((progname = strrchr(argv[0], FR_DIR_SEP)) == NULL) {
+ 		progname = argv[0];
+diff --git a/src/main/radsniff.c b/src/main/radsniff.c
+index 55b78cef59..e8d48be884 100644
+--- a/src/main/radsniff.c
++++ b/src/main/radsniff.c
+@@ -1965,7 +1965,8 @@ int main(int argc, char *argv[])
+ 	}
+ #endif
+ 
+-	talloc_set_log_stderr();
++	// Not available in older versions of talloc
++	//talloc_set_log_stderr();
+ 
+ 	conf = talloc_zero(NULL, rs_t);
+ 	RS_ASSERT(conf);
+diff --git a/src/main/radwho.c b/src/main/radwho.c
+index bd534cfaa9..9a30e4a432 100644
+--- a/src/main/radwho.c
++++ b/src/main/radwho.c
+@@ -222,7 +222,8 @@ int main(int argc, char **argv)
+ 	}
+ #endif
+ 
+-	talloc_set_log_stderr();
++	// Not available in older versions of talloc
++	//talloc_set_log_stderr();
+ 
+ 	while((c = getopt(argc, argv, "d:D:fF:nN:sSipP:crRu:U:Z")) != EOF) switch (c) {
+ 		case 'd':
+-- 
+2.20.1
+

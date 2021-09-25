@@ -1,0 +1,41 @@
+From e0589b130fc34780ddcfc36155df7b3796e0bda2 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Wed, 23 Jan 2019 17:53:45 -0800
+Subject: [PATCH 2003/2004] add TLS-OCSP-Cert-Valid to request
+
+TLS-OCSP-Cert-Valid indicates if the OCSP query was successful, skipped,
+or failed (certificate revoked). This is useful in the virtual_server
+called for EAP-TLS, but for some reason doesn't appear in the request
+packet VP list, even though code in ocsp_check adds it to the packet VP
+list. This commit finds the TLS-OCSP-Cert-Valid Value Pair (VP) then
+adds it to the certs list, which FreeRADIUS later copies to the request
+packet VP list (yes, the list we copy it from initially). For some
+reason this works, and is inexpensive, so it seems to be the best
+solution. My best guess is the Value Pair is allocated to the wrong
+talloc context and is freed too early.
+---
+ src/main/tls.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/src/main/tls.c b/src/main/tls.c
+index 9f1a3d28c7..49f91398c0 100644
+--- a/src/main/tls.c
++++ b/src/main/tls.c
+@@ -2458,6 +2458,14 @@ int cbtls_verify(int ok, X509_STORE_CTX *ctx)
+ 				 *	"skip verify on OK", then we don't do verify.
+ 				 */
+ 				my_ok = ocsp_check(request, ocsp_store, issuer_cert, client_cert, conf);
++
++				vp = fr_pair_find_by_da(request->packet->vps,
++						dict_attrbyname("TLS-OCSP-Cert-Valid"),
++						TAG_ANY);
++				if (vp != NULL) {
++					fr_pair_add(certs, fr_pair_list_copy(talloc_ctx, vp));
++				}
++
+ 				if (my_ok != OCSP_STATUS_FAILED) {
+ 					do_verify = !conf->verify_skip_if_ocsp_ok;
+ 				}
+-- 
+2.20.1
+

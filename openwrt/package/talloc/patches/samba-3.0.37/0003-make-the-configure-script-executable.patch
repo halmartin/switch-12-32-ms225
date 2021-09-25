@@ -1,0 +1,19 @@
+From 01d168c062ad3c0b9f98af9c4f5eb5ec522de347 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 14 Jan 2019 16:40:00 -0800
+Subject: [PATCH 3/8] make the configure script executable
+
+For some reason the configure script does not have executable
+permissions after the "results of autogen.sh" patch is applied, this
+fixes that.
+---
+ configure | 0
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ mode change 100644 => 100755 configure
+
+diff --git a/configure b/configure
+old mode 100644
+new mode 100755
+-- 
+2.20.1
+

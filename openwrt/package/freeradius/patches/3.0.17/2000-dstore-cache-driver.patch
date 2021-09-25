@@ -1,0 +1,489 @@
+From 4dd9f2a0462578373971e81c0a3734b99f625d89 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Fri, 16 Nov 2018 11:21:36 -0800
+Subject: [PATCH 2000/2003] dstore cache driver
+
+This adds a cache driver that makes use of dstore to create a shared
+cache between multiple nodes. This driver is based largely on the
+memcached driver, though much of the functionality has been removed as
+dstore doesn't support multiple connections, reconnections, etc.
+
+The dstore code is based on Jignesh's patch adding dstore to the rbtree
+cache in FreeRADIUS 2.2.5 (cache drivers are a new concept for FR3). The
+primary difference is this patch uses the serialize() function now
+available in FR3 rather than handling the data structures manually.
+---
+ .../rlm_cache/drivers/rlm_cache_dstore/all.mk |   3 +
+ .../rlm_cache_dstore/rlm_cache_dstore.c       | 450 ++++++++++++++++++
+ 2 files changed, 453 insertions(+)
+ create mode 100644 src/modules/rlm_cache/drivers/rlm_cache_dstore/all.mk
+ create mode 100644 src/modules/rlm_cache/drivers/rlm_cache_dstore/rlm_cache_dstore.c
+
+diff --git a/src/modules/rlm_cache/drivers/rlm_cache_dstore/all.mk b/src/modules/rlm_cache/drivers/rlm_cache_dstore/all.mk
+new file mode 100644
+index 0000000000..5b70d3e505
+--- /dev/null
++++ b/src/modules/rlm_cache/drivers/rlm_cache_dstore/all.mk
+@@ -0,0 +1,3 @@
++TARGET		:= rlm_cache_dstore.a
++SOURCES		:= rlm_cache_dstore.c ../../serialize.c
++TGT_LDLIBS	:= $(LIBS)
+diff --git a/src/modules/rlm_cache/drivers/rlm_cache_dstore/rlm_cache_dstore.c b/src/modules/rlm_cache/drivers/rlm_cache_dstore/rlm_cache_dstore.c
+new file mode 100644
+index 0000000000..b6f3b5418f
+--- /dev/null
++++ b/src/modules/rlm_cache/drivers/rlm_cache_dstore/rlm_cache_dstore.c
+@@ -0,0 +1,450 @@
++/*
++ *   This program is is free software; you can redistribute it and/or modify
++ *   it under the terms of the GNU General Public License as published by
++ *   the Free Software Foundation; either version 2 of the License, or (at
++ *   your option) any later version.
++ *
++ *   This program is distributed in the hope that it will be useful,
++ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *   GNU General Public License for more details.
++ *
++ *   You should have received a copy of the GNU General Public License
++ *   along with this program; if not, write to the Free Software
++ *   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
++ */
++
++/*
++ *	This cache driver is based on the memcached driver, with reduced
++ *	functionality due to many of memcached's features not translated to dstore.
++ *	The dstore code is based on Jignesh's patch of the cache module in
++ *	FreeRADIUS 2.2.5, and makes use of his DistributedStoreClient click element.
++ *
++ *	The primary difference in implementation is the use of FR3's serialize()
++ *	method, which greatly simplifies the code for the driver itself. In
++ *	addition, because this is a separate driver the dstore functionality is
++ *	separate from the cache itself.
++ *
++ *	Below is an example usage of the cache module
++ *  cache dstore_cache {
++ * 		driver = "rlm_cache_dstore"
++ *  	dstore {
++ *    		dstore_llrpc_file = "/click/dstoreclient/name"
++ *  	}
++ *   	key = "%{User-Name}:%{Virtual-Server}"
++ *   	ttl = 86400
++ *   	add-stats = no
++ *   	update {
++ *     		# list:Attr-Name
++ *     		&control:Password-With-Header = &control:Password-With-Header
++ *  	}
++ *	}
++ *
++ *	The driver value is mandatory. The dstore_llrpc_file is optional and will
++ *	default to the example value, but should point to an instance of the
++ *	DistributedStoreClient element.
++ *
++ *	add-stats should be set to no to prevent FreeRADIUS from counting the number
++ *	of times the cache entry has been used, greatly increasing the number of
++ *	writes to dstore.
++ *
++ *	Note that dstore only supports entries 1024 bytes long or shorter, and the
++ *	cache module with fail if anything longer is written. It may be worthwhile
++ *	to use the cache like so:
++ *	dstore_cache {
++ *		fail = 1
++ *	}
++ *
++ *	to prevent a CACHE_ERROR from causing the section to fail and the request to
++ *	be rejected. You may also want to use the dstore cache in conjunction with
++ *	the standard rbtree cache as using the local cache will be quicker and more
++ *	reliable.
++ */
++
++/**
++ * $Id$
++ * @file rlm_cache_dstore.c
++ * @brief dstore based cache.
++ *
++ * @copyright 2014 The FreeRADIUS server project
++ */
++#include <freeradius-devel/radiusd.h>
++#include <freeradius-devel/rad_assert.h>
++
++#include "../../rlm_cache.h"
++#include "../../serialize.h"
++
++#include <fcntl.h>
++#include <linux/ioctl.h>
++#include <sys/ioctl.h>
++
++/* Following macros copied from click/include/click/llrpc.h */
++
++#define _CLICK_NET_IOC_OUT	0x40000000
++#define _CLICK_NET_IOC_IN	0x80000000
++#if HAVE_PORTABLE_LLRPC || !defined(__linux__)
++# define _CLICK_IOC_OUT		_CLICK_NET_IOC_OUT
++# define _CLICK_IOC_IN		_CLICK_NET_IOC_IN
++#else
++# define _CLICK_IOC_OUT		(_IOC_READ << _IOC_DIRSHIFT)
++# define _CLICK_IOC_IN		(_IOC_WRITE << _IOC_DIRSHIFT)
++#endif
++
++#define _CLICK_IOC_FLAT		0x00004000
++
++#define _CLICK_IOX(d, n, sz)	((d) | ((sz) << 16) | (n))
++#define _CLICK_IOWRF(n, sz)	_CLICK_IOX(_CLICK_IOC_IN|_CLICK_IOC_OUT|_CLICK_IOC_FLAT, (n), (sz))
++
++#define CLICK_LLRPC_DSTORECLIENT_READ_START_SZ  1164
++#define CLICK_LLRPC_DSTORECLIENT_READ_START     _CLICK_IOWRF(32, CLICK_LLRPC_DSTORECLIENT_READ_START_SZ)
++#define CLICK_LLRPC_DSTORECLIENT_READ_RESLT_SZ  1164
++#define CLICK_LLRPC_DSTORECLIENT_READ_RESLT     _CLICK_IOWRF(33, CLICK_LLRPC_DSTORECLIENT_READ_RESLT_SZ)
++#define CLICK_LLRPC_DSTORECLIENT_WRITE_SZ       1164
++#define CLICK_LLRPC_DSTORECLIENT_WRITE          _CLICK_IOWRF(34, CLICK_LLRPC_DSTORECLIENT_WRITE_SZ)
++
++#define DSTORECLIENT_LLRPC_FILE "/click/dstoreclient/name"
++#define DSTOREKEY_PREFIX "lrc:"
++#define DSTOREKEY_PREFIX_LEN 4
++#define FREERADIUS_PROCESS_NAME "localradius"
++#define FREERADIUS_PROCESS_NAME_LEN 11
++
++struct dstoreclient_entry {
++    uint8_t key[64];
++    uint8_t token[64];
++    uint8_t value[1024];
++    uint16_t key_len;
++    uint16_t token_len;
++    uint16_t value_len;
++    uint16_t value_found;
++    uint32_t expiry;
++} __attribute__((__packed__));
++
++#define DSTORE_CURR_HEADER_VERSION 1
++#define DSTORE_MAX_ATTR_COUNT 255
++#define DSTORE_ATTR_SEPARATOR 255
++#define DSTORE_MAX_CACHE_ENTRY_SIZE 1024
++
++/*
++ *	Read cache entry from dstore for given key.
++ *
++ *	value set to empty if no entry in dstore found.
++ */
++static int dstore_read_entry(const char *llrpc_file, REQUEST *request, const char *key, char *value, size_t *value_len)
++{
++	struct dstoreclient_entry e;
++	int fd = 0;
++	int dstore_read_tout_ms = 500;
++	static int request_id = 0;
++	int catlen;
++
++	fd = open(llrpc_file, O_RDONLY);
++	if (fd < 0) {
++		RERROR("Failed to open fd \"%s\" for read", llrpc_file);
++		return -1;
++	}
++	memset(&e, 0, sizeof(struct dstoreclient_entry));
++
++	strlcpy((char*) e.key, DSTOREKEY_PREFIX, sizeof(e.key));
++	catlen = strlcat((char*) e.key, key, sizeof(e.key));
++	if (catlen > sizeof(e.key))
++		catlen = sizeof(e.key);
++	e.key_len = catlen;
++
++	strncpy((char*) e.token, FREERADIUS_PROCESS_NAME, FREERADIUS_PROCESS_NAME_LEN); // token is used for request id
++	*((int *) (e.token + FREERADIUS_PROCESS_NAME_LEN)) = request_id;
++	e.token_len = FREERADIUS_PROCESS_NAME_LEN + sizeof(int);
++	e.expiry = dstore_read_tout_ms;
++
++	if (ioctl(fd, CLICK_LLRPC_DSTORECLIENT_READ_START, &e) < 0) {
++		RERROR("llrpc: %s", strerror(errno));
++		RERROR("fd: %s", llrpc_file);
++		RERROR("LLRPC TO CLICK read start failed");
++		close(fd);
++		return -1;
++	} else
++		RDEBUG2("LLRPC TO CLICK read start success");
++	close(fd);
++
++	usleep(dstore_read_tout_ms * 1000);
++
++	fd = open(llrpc_file, O_RDONLY);
++	if (fd < 0) {
++		RERROR("Failed to open fd \"%s\" for read", llrpc_file);
++		return -1;
++	}
++	memset(&e, 0, sizeof(struct dstoreclient_entry));
++
++	strlcpy((char*) e.key, DSTOREKEY_PREFIX, sizeof(e.key));
++	catlen = strlcat((char*) e.key, key, sizeof(e.key));
++	if (catlen > sizeof(e.key))
++		catlen = sizeof(e.key);
++	e.key_len = catlen;
++
++	strncpy((char*) e.token, FREERADIUS_PROCESS_NAME, FREERADIUS_PROCESS_NAME_LEN); // token is used for request id
++	*((int *) (e.token + FREERADIUS_PROCESS_NAME_LEN)) = request_id;
++	e.token_len = FREERADIUS_PROCESS_NAME_LEN + sizeof(int);
++	e.token_len = FREERADIUS_PROCESS_NAME_LEN + sizeof(int);
++
++	if (ioctl(fd, CLICK_LLRPC_DSTORECLIENT_READ_RESLT, &e) < 0) {
++		RERROR("llrpc: %s", strerror(errno));
++		RERROR("fd: %s", llrpc_file);
++		RERROR("LLRPC TO CLICK read result failed");
++		close(fd);
++		return -1;
++	} else {
++		RDEBUG2("LLRPC TO CLICK read result success");
++		*value_len = e.value_len;
++		RDEBUG2("Read key: %s", key);
++		RDEBUG2("Read: %u bytes", e.value_len);
++		RDEBUG3("Read contents: %s", e.value);
++		if (e.value_len > 0) {
++			memcpy(value, e.value, e.value_len);
++			value[e.value_len] = 0;
++		}
++	}
++	close(fd);
++
++	++request_id;
++	rad_assert(*value_len < DSTORE_MAX_CACHE_ENTRY_SIZE);
++
++	return 0;
++}
++
++/*
++ *	Write cache entry to dstore for given key.
++ */
++static int dstore_write_entry(const char *llrpc_file, REQUEST *request, const char *key, const char *value, size_t value_len, int ttl)
++{
++	struct dstoreclient_entry e;
++	int fd = 0;
++	int ret = 0;
++	int catlen;
++
++	rad_assert(value_len < DSTORE_MAX_CACHE_ENTRY_SIZE);
++
++	fd = open(llrpc_file, O_RDONLY);
++	if (fd < 0) {
++		RERROR("Failed to open fd \"%s\" for read", llrpc_file);
++		return -1;
++	}
++	memset(&e, 0, sizeof(struct dstoreclient_entry));
++
++	strlcpy((char*) e.key, DSTOREKEY_PREFIX, sizeof(e.key));
++	catlen = strlcat((char*) e.key, key, sizeof(e.key));
++	if (catlen > sizeof(e.key))
++		catlen = sizeof(e.key);
++	e.key_len = catlen;
++
++	if(value_len > sizeof(e.value)) {
++		RERROR("Dstore_write_entry of size %d exceeds max size %d", value_len, sizeof(e.value));
++		return -1;
++	}
++	strlcpy((char*) e.value, value, sizeof(e.value));
++	e.value_len = value_len;
++	strncpy((char*) e.token, FREERADIUS_PROCESS_NAME, FREERADIUS_PROCESS_NAME_LEN); // token is used for writer
++	e.token_len = FREERADIUS_PROCESS_NAME_LEN;
++	e.expiry = ttl;
++
++	if (ioctl(fd, CLICK_LLRPC_DSTORECLIENT_WRITE, &e) < 0) {
++		RERROR("llrpc: %s", strerror(errno));
++		RERROR("fd: %s", llrpc_file);
++		RERROR("LLRPC TO CLICK write failed");
++		ret = -1;
++	} else {
++		RDEBUG2("LLRPC TO CLICK write success");
++		RDEBUG2("Wrote key: %s", key);
++		RDEBUG2("Wrote: %u bytes", e.value_len);
++		RDEBUG3("Write contents: %s", e.value);
++	}
++	close(fd);
++
++	return ret;
++}
++
++typedef struct rlm_cache_dstore {
++	char const 		*dstore_llrpc_file;	//!< Connection options
++} rlm_cache_dstore_t;
++
++static const CONF_PARSER driver_config[] = {
++	{ "dstore_llrpc_file", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_REQUIRED, rlm_cache_dstore_t, dstore_llrpc_file), DSTORECLIENT_LLRPC_FILE },
++	CONF_PARSER_TERMINATOR
++};
++
++
++/** Create a new rlm_cache_dstore instance
++ *
++ * @param conf dstore specific conf section.
++ * @param inst main rlm_cache instance.
++ * @return 0 on success, -1 on failure.
++ */
++static int mod_instantiate(CONF_SECTION *conf, rlm_cache_t *inst)
++{
++	rlm_cache_dstore_t *driver;
++
++	driver = talloc_zero(inst, rlm_cache_dstore_t);
++
++	if (cf_section_parse(conf, driver, driver_config) < 0) return -1;
++
++	inst->driver = driver;
++
++	return 0;
++}
++
++static void cache_entry_free(rlm_cache_entry_t *c)
++{
++	talloc_free(c);
++}
++
++/** Locate a cache entry in dstore
++ *
++ * @param out Where to write the pointer to the cach entry.
++ * @param inst main rlm_cache instance.
++ * @param request The current request.
++ * @param handle Dummy handle (not used).
++ * @param key to search for.
++ * @return CACHE_OK on success CACHE_MISS if no entry found, CACHE_ERROR on error.
++ */
++static cache_status_t cache_entry_find(rlm_cache_entry_t **out, rlm_cache_t *inst, REQUEST *request,
++				       rlm_cache_handle_t **handle, char const *key)
++{
++	rlm_cache_dstore_t *driver = inst->driver;
++	int ret;
++
++	rlm_cache_entry_t *c;
++
++	char from_dstore[DSTORE_MAX_CACHE_ENTRY_SIZE];
++	size_t len;
++
++	rad_assert(*handle == request);
++
++	// find entry in dstore
++	if (dstore_read_entry(driver->dstore_llrpc_file, request, key, from_dstore, &len)) {
++		RERROR("Dstore failed retrieving entry for key \"%s\"", key);
++		return CACHE_ERROR;
++	}
++
++	if (!len)
++		return CACHE_MISS;
++
++	RDEBUG2("Retrieved %zu bytes from dstore", len);
++	//RDEBUG3("Contents: %s", from_dstore);
++
++	c = talloc_zero(NULL,  rlm_cache_entry_t);
++	ret = cache_deserialize(c, from_dstore, len);
++	if (ret < 0) {
++		RERROR("%s", fr_strerror());
++		talloc_free(c);
++		return CACHE_ERROR;
++	}
++	c->key = talloc_strdup(c, key);
++	*out = c;
++
++	return CACHE_OK;
++}
++
++/** Insert a new entry into the data store
++ *
++ * @param inst main rlm_cache instance.
++ * @param request The current request.
++ * @param handle Dummy handle (not used).
++ * @param c entry to insert.
++ * @return CACHE_OK on success else CACHE_ERROR on error.
++ */
++static cache_status_t cache_entry_insert(rlm_cache_t *inst, REQUEST *request, rlm_cache_handle_t **handle,
++					 rlm_cache_entry_t *c)
++{
++	rad_assert(*handle == request);
++
++	rlm_cache_dstore_t *driver = inst->driver;
++	TALLOC_CTX *pool;
++	char *to_dstore;
++	int ret;
++	int ttl;
++
++	pool = talloc_pool(NULL, DSTORE_MAX_CACHE_ENTRY_SIZE);
++	if (!pool) return CACHE_ERROR;
++
++	if (cache_serialize(pool, &to_dstore, c) < 0) {
++		talloc_free(pool);
++
++		return CACHE_ERROR;
++	}
++
++	ttl = c->expires - c->created;
++	ret = dstore_write_entry(driver->dstore_llrpc_file, request, c->key, to_dstore, talloc_array_length(to_dstore), ttl);
++
++	talloc_free(pool);
++	if (ret != 0) {
++		RERROR("Dstore failed storing entry with key \"%s\"", c->key);
++
++		return CACHE_ERROR;
++	}
++
++	return CACHE_OK;
++}
++
++/** Call delete the cache entry from dstore
++ *
++ * @param inst main rlm_cache instance.
++ * @param request The current request.
++ * @param handle Dummy handle (not used).
++ * @param c entry to expire.
++ * @return CACHE_OK on success else CACHE_ERROR.
++ */
++static cache_status_t cache_entry_expire(rlm_cache_t *inst, REQUEST *request, rlm_cache_handle_t **handle,
++					 rlm_cache_entry_t *c)
++{
++	int ret;
++	char empty = '\0';
++
++	rad_assert(*handle == request);
++	rlm_cache_dstore_t *driver = inst->driver;
++
++	ret = dstore_write_entry(driver->dstore_llrpc_file, request, c->key, &empty, 1, 0);
++	if (ret != 0) {
++		RERROR("Dstore failed expiring entry with key \"%s\"", c->key);
++
++		return CACHE_ERROR;
++	}
++
++	return CACHE_OK;
++}
++
++/** This is basically a noop for dstore, no need to lock or setup connection
++ *
++ * @param out Where to write the dummy handle.
++ * @param inst rlm_cache instance.
++ * @param request The current request.
++ */
++static int mod_conn_get(rlm_cache_handle_t **out, rlm_cache_t *inst, REQUEST *request)
++{
++	*out = request;		/* handle is unused, this is just for sanity checking */
++
++	return 0;
++}
++
++/** Also a noop for dstore, no connection or lock to release
++ *
++ * @param inst main rlm_cache instance.
++ * @param request The current request.
++ * @param handle The dummy handle created by mod_conn_get.
++ */
++static void mod_conn_release(rlm_cache_t *inst, REQUEST *request, rlm_cache_handle_t **handle)
++{
++	rad_assert(*handle == request);
++	*handle = NULL;
++}
++
++extern cache_module_t rlm_cache_dstore;
++cache_module_t rlm_cache_dstore = {
++	.name		= "rlm_cache_dstore",
++	.instantiate	= mod_instantiate,
++	.free		= cache_entry_free,
++
++	.find		= cache_entry_find,
++	.insert		= cache_entry_insert,
++	.expire		= cache_entry_expire,
++
++	.acquire	= mod_conn_get,
++	.release	= mod_conn_release,
++};
+-- 
+2.20.1
+

@@ -1,0 +1,4 @@
+Package: stress
+Priority: optional
+Section: util
+Description: stress is a simple tool that imposes certain types of compute stress

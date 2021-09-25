@@ -1,0 +1,41 @@
+From a029f35a56225f42c270c8f4c334d6c0d07dd364 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 14 Jan 2019 16:43:06 -0800
+Subject: [PATCH 4/8] respect DESTDIR, don't install manpage
+
+The default makefile installs the lib and include files in the lib and
+include dir, instead of the ipkg-install directory specified by DESTDIR.
+This adds $(DESTDIR) to the install paths so the resulting files are
+placed approriately. Since we're already modifying Makefile.in, we also
+delete the lines responsible for add manpages, they aren't needed on the
+node.
+---
+ Makefile.in | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/Makefile.in b/Makefile.in
+index 14e8115..1e33cbb 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -34,13 +34,11 @@ libtalloc.a: $(LIBOBJ)
+ 	@-ranlib $@
+ 
+ install: all 
+-	${INSTALLCMD} -d ${libdir}
+-	${INSTALLCMD} -m 755 libtalloc.a $(libdir)
+-	${INSTALLCMD} -d ${includedir}
+-	${INSTALLCMD} -m 644 $(srcdir)/talloc.h $(includedir)
+-	${INSTALLCMD} -m 644 talloc.pc $(libdir)/pkgconfig
+-	if [ -f talloc.3 ];then ${INSTALLCMD} -d ${mandir}/man3; fi
+-	if [ -f talloc.3 ];then ${INSTALLCMD} -m 644 talloc.3 $(mandir)/man3; fi
++	${INSTALLCMD} -d $(DESTDIR)${libdir}
++	${INSTALLCMD} -m 755 libtalloc.a $(DESTDIR)$(libdir)
++	${INSTALLCMD} -d $(DESTDIR)${includedir}
++	${INSTALLCMD} -m 644 $(srcdir)/talloc.h $(DESTDIR)$(includedir)
++	${INSTALLCMD} -m 644 talloc.pc $(DESTDIR)$(libdir)/pkgconfig
+ 
+ doc: talloc.3 talloc.3.html
+ 
+-- 
+2.20.1
+

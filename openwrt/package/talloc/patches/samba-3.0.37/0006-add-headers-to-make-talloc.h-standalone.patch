@@ -1,0 +1,30 @@
+From 11cb87c2de76f38fbf6da7ea7d5a1d14d1a827ec Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 14 Jan 2019 16:58:10 -0800
+Subject: [PATCH 6/8] add headers to make talloc.h standalone
+
+This version of talloc came from the samba repository and so was not
+built alone. When talloc is included in other projects, these three
+files might be needed to avoid errors when including talloc.h
+---
+ talloc.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/talloc.h b/talloc.h
+index 9ef8724..2e79c96 100644
+--- a/talloc.h
++++ b/talloc.h
+@@ -26,6 +26,10 @@
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+ 
++#include <stddef.h>
++#include <stdio.h>
++#include <stdarg.h>
++
+ /* this is only needed for compatibility with the old talloc */
+ typedef void TALLOC_CTX;
+ 
+-- 
+2.20.1
+

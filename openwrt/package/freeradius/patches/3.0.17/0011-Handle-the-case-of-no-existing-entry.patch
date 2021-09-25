@@ -1,0 +1,37 @@
+From 3d4dbd6f6340e8984eeabdc4a5f1dace661c9a74 Mon Sep 17 00:00:00 2001
+From: "Alan T. DeKok" <aland@freeradius.org>
+Date: Wed, 13 Feb 2019 20:42:52 -0500
+Subject: [PATCH] Hnadle the case of no existing entry, fixes #2485
+
+Setting a Cache-TTL of < 0 means expire the existing entry
+(without merging) and create a new one with TTL set to value * -1.
+
+If there is no existing entry, the previous code just set
+	ttl = inst->ttl
+
+It should instead use Cache-TTL
+---
+ src/modules/rlm_cache/rlm_cache.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/modules/rlm_cache/rlm_cache.c b/src/modules/rlm_cache/rlm_cache.c
+index 248de8bf9b..9dcf5ff422 100644
+--- a/src/modules/rlm_cache/rlm_cache.c
++++ b/src/modules/rlm_cache/rlm_cache.c
+@@ -477,7 +477,12 @@ static rlm_rcode_t CC_HINT(nonnull) mod_cache_it(void *instance, REQUEST *reques
+ 	 *	If there's no existing cache entry, go and create a new one.
+ 	 */
+ 	if (!c) {
+-		if (ttl <= 0) ttl = inst->ttl;
++		if (ttl == 0) {
++			ttl = inst->ttl;
++
++		} else if (ttl < 0) {
++			ttl = -ttl;
++		}
+ 		goto insert;
+ 	}
+ 
+-- 
+2.20.1
+

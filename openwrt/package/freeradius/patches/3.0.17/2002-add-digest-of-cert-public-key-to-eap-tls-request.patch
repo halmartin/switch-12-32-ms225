@@ -1,0 +1,104 @@
+From 5dbd56582a32171a217ca01bbc4a0bb4e6df94a6 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Tue, 22 Jan 2019 21:42:35 -0800
+Subject: [PATCH 2002/2004] add digest of cert public key to eap-tls request
+
+FreeRADIUS includes many details about the client certificates as
+internal attributes which can be passed to the virtual_server used in
+EAP-TLS verification. For our internal logic we also want to have access
+to the SHA256 digest of the certificate's public key, so this adds code
+to calculate the fingerprint of the public key as SHA256 and add it to
+the "certs" Value Pair list so FreeRADIUS handles it like the other
+certificate attributes.
+
+NB: FreeRADIUS has an attribute for the Subject Key Identifier, which
+also contains the fingerprint of the certificate's public key, but is
+not guaranteed to be present on all certificates and is NOT validated,
+so it isn't useful for our purposes.
+---
+ share/dictionary.freeradius.internal |  3 +++
+ src/main/tls.c                       | 26 ++++++++++++++++++++++++--
+ 2 files changed, 27 insertions(+), 2 deletions(-)
+
+diff --git a/share/dictionary.freeradius.internal b/share/dictionary.freeradius.internal
+index 88810fb97d..6d689f8b44 100644
+--- a/share/dictionary.freeradius.internal
++++ b/share/dictionary.freeradius.internal
+@@ -519,6 +519,8 @@ ATTRIBUTE	TLS-Cert-Subject-Alt-Name-Email		1915	string
+ ATTRIBUTE	TLS-Cert-Subject-Alt-Name-Dns		1916	string
+ ATTRIBUTE	TLS-Cert-Subject-Alt-Name-Upn		1917	string
+ # 1918 - 1919: reserved for future cert attributes
++ATTRIBUTE	TLS-Cert-Pkey-Digest	1918 string
++
+ ATTRIBUTE	TLS-Client-Cert-Serial			1920	string
+ ATTRIBUTE	TLS-Client-Cert-Expiration		1921	string
+ ATTRIBUTE	TLS-Client-Cert-Issuer			1922	string
+@@ -536,6 +538,7 @@ ATTRIBUTE	TLS-PSK-Identity			1933	string
+ ATTRIBUTE	TLS-Client-Cert-X509v3-Extended-Key-Usage-OID 1936	string
+ 
+ # 1937 - 1939: reserved for future cert attributes
++ATTRIBUTE	TLS-Client-Cert-Pkey-Digest	1937 string
+ 
+ # 1940 - 1949: reserved for TLS session caching, mostly in 3.1
+ 
+diff --git a/src/main/tls.c b/src/main/tls.c
+index 7eb71d8ff3..9f1a3d28c7 100644
+--- a/src/main/tls.c
++++ b/src/main/tls.c
+@@ -2005,7 +2005,7 @@ ocsp_end:
+ /*
+  *	For creating certificate attributes.
+  */
+-static char const *cert_attr_names[8][2] = {
++static char const *cert_attr_names[9][2] = {
+ 	{ "TLS-Client-Cert-Serial",			"TLS-Cert-Serial" },
+ 	{ "TLS-Client-Cert-Expiration",			"TLS-Cert-Expiration" },
+ 	{ "TLS-Client-Cert-Subject",			"TLS-Cert-Subject" },
+@@ -2013,7 +2013,8 @@ static char const *cert_attr_names[8][2] = {
+ 	{ "TLS-Client-Cert-Common-Name",		"TLS-Cert-Common-Name" },
+ 	{ "TLS-Client-Cert-Subject-Alt-Name-Email",	"TLS-Cert-Subject-Alt-Name-Email" },
+ 	{ "TLS-Client-Cert-Subject-Alt-Name-Dns",	"TLS-Cert-Subject-Alt-Name-Dns" },
+-	{ "TLS-Client-Cert-Subject-Alt-Name-Upn",	"TLS-Cert-Subject-Alt-Name-Upn" }
++	{ "TLS-Client-Cert-Subject-Alt-Name-Upn",	"TLS-Cert-Subject-Alt-Name-Upn" },
++	{ "TLS-Client-Cert-Pkey-Digest",		"TLS-Cert-Pkey-Digest" }
+ };
+ 
+ #define FR_TLS_SERIAL		(0)
+@@ -2024,6 +2025,7 @@ static char const *cert_attr_names[8][2] = {
+ #define FR_TLS_SAN_EMAIL       	(5)
+ #define FR_TLS_SAN_DNS          (6)
+ #define FR_TLS_SAN_UPN          (7)
++#define FR_TLS_PKEY_DGST        (8)
+ 
+ /*
+  *	Before trusting a certificate, you must make sure that the
+@@ -2143,6 +2145,26 @@ int cbtls_verify(int ok, X509_STORE_CTX *ctx)
+ 		rdebug_pair(L_DBG_LVL_2, request, vp, NULL);
+ 	}
+ 
++	/*
++	 * Meraki:
++	 * Get the SHA256 digest of the cert's public key
++	 */
++	buf[0] = '\0';
++	if (certs && identity && (lookup <= 1)) {
++		const EVP_MD *fprint_type = EVP_sha256();
++		unsigned int fprint_size;
++		unsigned char fprint[EVP_MAX_MD_SIZE];
++		if (X509_pubkey_digest(client_cert, fprint_type, fprint, &fprint_size)) {
++			for (unsigned int i=0; i<fprint_size; i++) {
++				sprintf(buf+(i*2), "%02X", fprint[i]);
++			}
++			buf[fprint_size*2] = '\0';
++			vp = fr_pair_make(talloc_ctx, certs, cert_attr_names[FR_TLS_PKEY_DGST][lookup], buf, T_OP_SET);
++			rdebug_pair(L_DBG_LVL_2, request, vp, NULL);
++		} else {
++			RDEBUG2("Failed getting pubkey digest");
++		}
++	}
+ 
+ 	/*
+ 	 *	Get the Expiration Date
+-- 
+2.20.1
+

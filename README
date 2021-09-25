@@ -1,0 +1,15 @@
+To build OpenWRT firmware:
+
+cd meraki-firmware/openwrt
+cp config-arm-3.18 .config
+make oldconfig
+make -j1 BOARD=switch-arm OPENWRT_EXTRA_BOARD_SUFFIX=_3.18
+
+To build Linux-3.18 kernel:
+
+cd meraki-firmware/linux-3.18
+cp ../openwrt/target/linux/switch-arm-3.18//config .config
+make CROSS_COMPILE=../openwrt/staging_dir_arm_nofpu_3.18/bin/arm-linux-musleabi ARCH=arm oldconfig
+make CROSS_COMPILE=../openwrt/staging_dir_arm_nofpu_3.18/bin/arm-linux-musleabi ARCH=arm prepare
+touch rootlist
+make CROSS_COMPILE=../openwrt/staging_dir_arm_nofpu_3.18/bin/arm-linux-musleabi ARCH=arm vmlinux

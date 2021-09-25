@@ -1,0 +1,4 @@
+Package: libubox
+Priority: optional
+Section: libs
+Description: OpenWRT utility library

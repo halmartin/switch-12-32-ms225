@@ -1,0 +1,98 @@
+From 0dc5d920a003a7c250c5751de1be510383a43f49 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 14 Jan 2019 17:02:25 -0800
+Subject: [PATCH 7/8] functions and macros for compatibility with FreeRADIUS
+
+FreeRADIUS depends on a later version of talloc, which is not usable due
+to licensing issues. Instead, we add a small handful of macros and
+functions needed by FreeRADIUS that allow it to use this older version
+of talloc, even if the functionality isn't identical.
+---
+ talloc.c | 20 ++++++++++++++++++++
+ talloc.h | 27 +++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+
+diff --git a/talloc.c b/talloc.c
+index b2b00d8..d887fad 100644
+--- a/talloc.c
++++ b/talloc.c
+@@ -1140,6 +1140,26 @@ char *talloc_append_string(const void *t, char *orig, const char *append)
+ 	return ret;
+ }
+ 
++/*
++Append a string to given string.
++Seems to have originally replaced talloc_append_string, but doesn't take a ctx argument.
++talloc_realloc used by talloc_append_string will use the context of the original ptr unless
++the original pointer is NULL, in which case it will use the first parameter (t) as the
++context. Since we pass orig as both t and the original ptr, the context will be null if the
++orig ptr is NULL, which makes sense because there is nothing else we could use as a context.
++
++According to documentation talloc_strdup_append should also set the name of the chunk to the
++value of the string
++*/
++char* talloc_strdup_append(char *orig, const char *append)
++{
++	char *ret = talloc_append_string(orig, orig, append);
++	if (likely(ret)) {
++		_talloc_set_name_const(ret, ret);
++	}
++	return orig;
++}
++
+ /*
+   strndup with a talloc 
+ */
+diff --git a/talloc.h b/talloc.h
+index 2e79c96..864b3c7 100644
+--- a/talloc.h
++++ b/talloc.h
+@@ -30,6 +30,10 @@
+ #include <stdio.h>
+ #include <stdarg.h>
+ 
++// Dummy values since this isn't a standalone release of talloc
++#define talloc_version_major() 0
++#define talloc_version_minor() 0
++
+ /* this is only needed for compatibility with the old talloc */
+ typedef void TALLOC_CTX;
+ 
+@@ -106,6 +110,25 @@ typedef void TALLOC_CTX;
+ 
+ #define talloc_find_parent_bytype(ptr, type) (type *)talloc_find_parent_byname(ptr, #type)
+ 
++/***** Added to mimic functionality required by FreeRADIUS *****/
++//nulls out a pointer after freeing it
++#define TALLOC_FREE(ctx) do { if (ctx != NULL) talloc_free(ctx); ctx = NULL; } while(0)
++
++//Simple way to calculate array length
++#define talloc_array_length(array) ((talloc_get_size(array) / sizeof(*array)))
++
++//talloc_get_type_abort is just a safer version of talloc_get_type TODO: check this
++#define talloc_get_type_abort(ptr, type) talloc_get_type(ptr, type)
++
++//talloc pool preallocates some memory for better efficiency, but otherwise
++//functions like talloc_new.
++#define talloc_pool(ctx, size) talloc_new(ctx)
++
++//talloc documentation states talloc_asprintf_append_buffer is just a more
++//efficient talloc_asprintf_append that might not handle spaces correctly.
++#define talloc_asprintf_append_buffer talloc_asprintf_append
++/***** End added macros *****/
++
+ #if TALLOC_DEPRECATED
+ #define talloc_zero_p(ctx, type) talloc_zero(ctx, type)
+ #define talloc_p(ctx, type) talloc(ctx, type)
+@@ -170,4 +193,8 @@ void *talloc_find_parent_byname(const void *ctx, const char *name);
+ void talloc_show_parents(const void *context, FILE *file);
+ int talloc_is_parent(const void *context, const void *ptr);
+ 
++/***** Added to mimic functionality required by FreeRADIUS *****/
++char* talloc_strdup_append(char *orig, const char *append);
++/***** End added functions *****/
++
+ #endif
+-- 
+2.20.1
+

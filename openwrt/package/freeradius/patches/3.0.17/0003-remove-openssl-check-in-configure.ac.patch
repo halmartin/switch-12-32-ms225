@@ -1,0 +1,61 @@
+From efde92857e541d5fe449c13faff728d3dca01444 Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Mon, 19 Nov 2018 15:32:03 -0800
+Subject: [PATCH 03/15] remove openssl check in configure.ac
+
+Based on Jignesh's '002-configure' patch for v2.2.5
+
+	"removed a test from configure.in that was failing.
+	I could not figure how to get it to pass and it
+	did not seem critical."
+
+Autoconf changes are in a later pater so they are generated all at once.
+---
+ configure.ac | 31 -------------------------------
+ 1 file changed, 31 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 43fdbbc3f8..f155c800a7 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1182,37 +1182,6 @@ if test "x$WITH_OPENSSL" = xyes; then
+     old_CPPFLAGS="$CPPFLAGS"
+     CPPFLAGS="$OPENSSL_CPPFLAGS $CPPFLAGS"
+ 
+-    dnl #
+-    dnl #  Now check that the header versions match the library
+-    dnl #
+-    AC_MSG_CHECKING([OpenSSL library and header version consistency])
+-    AC_RUN_IFELSE(
+-      [AC_LANG_PROGRAM(
+-        [[
+-          #include <stdio.h>
+-          #include <openssl/opensslv.h>
+-          #include <openssl/crypto.h>
+-        ]],
+-        [[
+-          printf("library: %lx header: %lx... ", (unsigned long) SSLeay(), (unsigned long) OPENSSL_VERSION_NUMBER);
+-          if (SSLeay() == OPENSSL_VERSION_NUMBER) {
+-            return 0;
+-          } else {
+-            return 1;
+-          }
+-        ]]
+-      )],
+-      [
+-        AC_MSG_RESULT(yes)
+-      ],
+-      [
+-        AC_MSG_RESULT(no)
+-        AC_MSG_FAILURE([OpenSSL library version does not match header version])
+-      ],
+-      [
+-        AC_MSG_RESULT([cross-compiling (assuming yes)])
+-      ]
+-    )
+     dnl #
+     dnl #  Check if the new HMAC_CTX interface is defined
+     dnl #
+-- 
+2.18.0
+

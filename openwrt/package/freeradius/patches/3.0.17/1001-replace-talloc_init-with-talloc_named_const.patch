@@ -1,0 +1,101 @@
+From c62a3b0a272cd10af0b79d43f881edf2d37723fd Mon Sep 17 00:00:00 2001
+From: Ethan Everett <eeverett@meraki.com>
+Date: Thu, 20 Dec 2018 13:53:19 -0800
+Subject: [PATCH 1001/1002] replace talloc_init with talloc_named_const
+
+The old version of talloc we use calls talloc_enable_null_tracking() in
+talloc_init(), which we do not want if FreeRADIUS runs multithreaded.
+FreeRADIUS will call talloc_disable_null_tracking(), which frees the
+null_context at the root of the tree. If we first enable the
+null_context, then all talloc'd memory up until now is attached to the
+null_context, and is then freed as they are descendants of the
+null_context. (Later versions of talloc correct this by just setting the
+parent pointer to NULL, but the version we use does not).
+talloc_named_const() does basically the same thing, and in fact is the
+preferred function as talloc_init() is designed for legacy compatibility
+with Samba.
+---
+ src/main/connection.c              | 4 ++--
+ src/main/process.c                 | 2 +-
+ src/main/radiusd.c                 | 2 +-
+ src/main/util.c                    | 2 +-
+ src/modules/rlm_eap/radeapclient.c | 2 +-
+ 5 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/main/connection.c b/src/main/connection.c
+index a228678ca6..831d52061b 100644
+--- a/src/main/connection.c
++++ b/src/main/connection.c
+@@ -418,7 +418,7 @@ static fr_connection_t *fr_connection_spawn(fr_connection_pool_t *pool, time_t n
+ 	 *	Allocate a new top level ctx for the create callback
+ 	 *	to hang its memory off of.
+ 	 */
+-	ctx = talloc_init("fr_connection_ctx");
++	ctx = talloc_named_const(NULL, 0, "fr_connection_ctx");
+ 	if (!ctx) return NULL;
+ 
+ 	/*
+@@ -899,7 +899,7 @@ static fr_connection_t *fr_connection_reconnect_internal(fr_connection_pool_t *p
+ 	 *	Allocate a new top level ctx for the create callback
+ 	 *	to hang its memory off of.
+ 	 */
+-	ctx = talloc_init("fr_connection_ctx");
++	ctx = talloc_named_const(NULL, 0, "fr_connection_ctx");
+ 	if (!ctx) return NULL;
+ 	fr_link_talloc_ctx_free(conn, ctx);
+ 
+diff --git a/src/main/process.c b/src/main/process.c
+index 76eb3dea4a..c662267ef0 100644
+--- a/src/main/process.c
++++ b/src/main/process.c
+@@ -5441,7 +5441,7 @@ int radius_event_start(CONF_SECTION *cs, bool have_children)
+ 		main_config.init_delay.tv_usec >>= 1;
+ 		main_config.init_delay.tv_sec >>= 1;
+ 
+-		proxy_ctx = talloc_init("proxy");
++		proxy_ctx = talloc_named_const(NULL, 0, "proxy");
+ 	}
+ #endif
+ 
+diff --git a/src/main/radiusd.c b/src/main/radiusd.c
+index aac9263ffb..811d8311f7 100644
+--- a/src/main/radiusd.c
++++ b/src/main/radiusd.c
+@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
+ 	 *  directly, so we'll allocate a new context beneath it, and
+ 	 *  free that before any leak reports.
+ 	 */
+-	TALLOC_CTX *autofree = talloc_init("main");
++	TALLOC_CTX *autofree = talloc_named_const(NULL, 0, "main");
+ 
+ #ifdef OSFC2
+ 	set_auth_parameters(argc, argv);
+diff --git a/src/main/util.c b/src/main/util.c
+index 22299f8c8d..50a20220bc 100644
+--- a/src/main/util.c
++++ b/src/main/util.c
+@@ -621,7 +621,7 @@ REQUEST *request_alloc(TALLOC_CTX *ctx)
+ 	request->component = "<core>";
+ 	request->log.func = vradlog_request;
+ 
+-	request->state_ctx = talloc_init("session-state");
++	request->state_ctx = talloc_named_const(NULL, 0, "session-state");
+ 
+ 	return request;
+ }
+diff --git a/src/modules/rlm_eap/radeapclient.c b/src/modules/rlm_eap/radeapclient.c
+index 553a6a6a57..fb73970282 100644
+--- a/src/modules/rlm_eap/radeapclient.c
++++ b/src/modules/rlm_eap/radeapclient.c
+@@ -1906,7 +1906,7 @@ int main(int argc, char **argv)
+ 	 *	directly, so we'll allocate a new context beneath it, and
+ 	 *	free that before any leak reports.
+ 	 */
+-	autofree = talloc_init("main");
++	autofree = talloc_named_const(NULL, 0, "main");
+ 
+ 	fr_debug_lvl = 0;
+ 	fr_log_fp = stdout;
+-- 
+2.20.1
+
